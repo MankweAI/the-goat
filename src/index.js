@@ -1,9 +1,15 @@
 const express = require("express");
 const { supabase } = require("../config/database");
+const WhatsAppService = require("./services/whatsappService");
+const WhatsAppController = require("./controllers/whatsappController");
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize services
+const whatsappService = new WhatsAppService();
+const whatsappController = new WhatsAppController();
 
 // Middleware
 app.use(express.json());
@@ -18,12 +24,14 @@ app.get("/health", async (req, res) => {
 
     if (error) throw error;
 
+    const whatsappStatus = whatsappService.getStatus();
+
     res.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
       database: "connected",
+      whatsapp: whatsappStatus,
       environment: process.env.NODE_ENV,
-      test_query: data ? "success" : "no_data",
     });
   } catch (error) {
     console.error("Health check error:", error);
@@ -35,6 +43,16 @@ app.get("/health", async (req, res) => {
   }
 });
 
+// WhatsApp status endpoint
+app.get("/whatsapp-status", (req, res) => {
+  const status = whatsappService.getStatus();
+  res.json({
+    status: "whatsapp_status",
+    timestamp: new Date().toISOString(),
+    ...status,
+  });
+});
+
 // Database data summary
 app.get("/data-summary", async (req, res) => {
   try {
@@ -44,6 +62,7 @@ app.get("/data-summary", async (req, res) => {
       "questions",
       "lessons",
       "worked_examples",
+      "users",
     ];
     const counts = {};
 
@@ -72,146 +91,52 @@ app.get("/data-summary", async (req, res) => {
   }
 });
 
-// Get topics hierarchy
-app.get("/topics", async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("topics")
-      .select("*")
-      .order("level", { ascending: true })
-      .order("sort_order", { ascending: true });
-
-    if (error) throw error;
-
-    // Organize by hierarchy
-    const hierarchy = {};
-    data.forEach((topic) => {
-      if (!hierarchy[topic.level]) {
-        hierarchy[topic.level] = [];
-      }
-      hierarchy[topic.level].push({
-        code: topic.code,
-        title: topic.title,
-        parent_id: topic.parent_id,
-        level: topic.level,
-      });
-    });
-
-    res.json({
-      status: "topics_loaded",
-      total_topics: data.length,
-      hierarchy: hierarchy,
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: error.message,
-    });
-  }
-});
-
-// Get sample questions for a topic
-app.get("/questions/:topicCode", async (req, res) => {
-  try {
-    const { topicCode } = req.params;
-
-    // First get topic ID
-    const { data: topicData, error: topicError } = await supabase
-      .from("topics")
-      .select("id, title")
-      .eq("code", topicCode)
-      .single();
-
-    if (topicError) throw topicError;
-
-    // Get questions for this topic
-    const { data: questions, error: questionError } = await supabase
-      .from("questions")
-      .select("*")
-      .eq("topic_id", topicData.id);
-
-    if (questionError) throw questionError;
-
-    res.json({
-      status: "questions_loaded",
-      topic: topicData.title,
-      total_questions: questions.length,
-      questions: questions.map((q) => ({
-        id: q.id,
-        question: q.question_text,
-        options: {
-          A: q.option_a,
-          B: q.option_b,
-          C: q.option_c,
-          D: q.option_d,
-        },
-        correct: q.correct_answer,
-        difficulty: q.difficulty,
-      })),
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: error.message,
-    });
-  }
-});
-
-// Test class access
-app.get("/test-class/:classCode", async (req, res) => {
-  try {
-    const { classCode } = req.params;
-
-    const { data, error } = await supabase
-      .from("classes")
-      .select("*")
-      .eq("class_code", classCode)
-      .single();
-
-    if (error) {
-      return res.status(404).json({
-        status: "class_not_found",
-        class_code: classCode,
-        message: "Invalid class code",
-      });
-    }
-
-    res.json({
-      status: "class_found",
-      class: {
-        code: data.class_code,
-        name: data.class_name,
-        subject: data.subject,
-        enrollment: `${data.current_enrollment}/${data.max_students}`,
-        active: data.is_active,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: error.message,
-    });
-  }
-});
-
 // Basic route
 app.get("/", (req, res) => {
   res.json({
     message: "🐐 The GOAT WhatsApp EdTech MVP",
     version: "1.0.0",
     status: "running",
+    whatsapp: whatsappService.getStatus(),
     endpoints: [
       "GET / - This message",
-      "GET /health - Health check",
+      "GET /health - Health check with WhatsApp status",
+      "GET /whatsapp-status - WhatsApp connection status",
       "GET /data-summary - Database content summary",
-      "GET /topics - Topics hierarchy",
-      "GET /questions/:topicCode - Questions for specific topic",
-      "GET /test-class/:classCode - Test class code validation",
     ],
   });
 });
 
-app.listen(PORT, () => {
+// Initialize WhatsApp service
+async function initializeServices() {
+  try {
+    console.log("🚀 Starting The GOAT services...");
+
+    // Connect WhatsApp controller to service
+    whatsappController.setMessageSender((to, text) =>
+      whatsappService.sendMessage(to, text)
+    );
+
+    // Register message handler
+    whatsappService.addMessageHandler((messageInfo) =>
+      whatsappController.handleMessage(messageInfo)
+    );
+
+    // Initialize WhatsApp
+    const whatsappReady = await whatsappService.initialize();
+
+    if (whatsappReady) {
+      console.log("✅ WhatsApp service ready");
+    } else {
+      console.log("⚠️ WhatsApp service failed to initialize");
+    }
+  } catch (error) {
+    console.error("❌ Error initializing services:", error);
+  }
+}
+
+// Start server
+app.listen(PORT, async () => {
   console.log(`🚀 The GOAT server running on port ${PORT}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV}`);
   console.log(
@@ -221,10 +146,22 @@ app.listen(PORT, () => {
   );
   console.log("\n🔗 Available endpoints:");
   console.log(`   Health: http://localhost:${PORT}/health`);
+  console.log(`   WhatsApp: http://localhost:${PORT}/whatsapp-status`);
   console.log(`   Data: http://localhost:${PORT}/data-summary`);
-  console.log(`   Topics: http://localhost:${PORT}/topics`);
-  console.log(`   Questions: http://localhost:${PORT}/questions/CHAIN-RULE`);
-  console.log(
-    `   Class test: http://localhost:${PORT}/test-class/M12-ALPHA-2025`
-  );
+
+  // Initialize services after server starts
+  await initializeServices();
+});
+
+// Graceful shutdown
+process.on("SIGINT", async () => {
+  console.log("\n🛑 Shutting down gracefully...");
+  await whatsappService.disconnect();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  console.log("\n🛑 Shutting down gracefully...");
+  await whatsappService.disconnect();
+  process.exit(0);
 });
