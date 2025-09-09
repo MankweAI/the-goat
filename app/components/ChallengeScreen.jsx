@@ -1,7 +1,7 @@
 // FILE: app/components/ChallengeScreen.jsx
 // -------------------------------------------------
 // BUG FIX - The ChallengeMCQ component is now updated to handle the
-// standardized options format (array of objects with a .text property).
+// standardized options format (an array of objects with a .text property).
 // -------------------------------------------------
 "use client";
 import { useState, useEffect } from "react";
@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const ChallengeMCQ = ({ challenge, onAnswered, difficulty }) => {
   const [selectedOption, setSelectedOption] = useState(null);
 
+  // This now expects an object: option = { text: "...", isCorrect: ... }
   const handleSelect = (option) => {
     setSelectedOption(option);
     setTimeout(() => onAnswered(option.isCorrect), 1200);
@@ -39,11 +40,11 @@ const ChallengeMCQ = ({ challenge, onAnswered, difficulty }) => {
             className={`w-full p-4 text-center rounded-lg border-2 font-semibold transition-all duration-300 ${
               selectedOption
                 ? option.isCorrect
-                  ? "bg-green-100 border-green-500"
+                  ? "bg-green-100 border-green-500" // Correct answer is always green
                   : selectedOption.text === option.text
-                  ? "bg-red-100 border-red-500"
-                  : "bg-white border-gray-200"
-                : "bg-white border-gray-200 hover:bg-gray-100"
+                  ? "bg-red-100 border-red-500" // Selected incorrect answer is red
+                  : "bg-white border-gray-200" // Other incorrect answers
+                : "bg-white border-gray-200 hover:bg-gray-100" // Default state
             }`}
           >
             {option.text}

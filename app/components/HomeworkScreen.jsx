@@ -6,7 +6,6 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useGamification } from "@/context/GamificationContext";
 
 export default function HomeworkScreen({
   onGenerateCurriculum, // This prop will now handle the submission
@@ -18,7 +17,6 @@ export default function HomeworkScreen({
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const { goatPoints, level, currentStreak } = useGamification();
 
   // Clipboard paste image support
   useEffect(() => {

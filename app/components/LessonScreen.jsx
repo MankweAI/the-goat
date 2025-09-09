@@ -1,57 +1,90 @@
 // FILE: app/components/LessonScreen.jsx
 // -------------------------------------------------
-// MODIFIED - The call-to-action button now dynamically displays the
-// question label if it exists.
+// MODIFIED - The final button now changes based on the objective type,
+// leading either to a challenge or to the new solution screen.
 // -------------------------------------------------
 "use client";
+// ... (imports remain the same)
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+// ... (BlueprintRenderer remains the same)
+const BlueprintRenderer = ({ summary }) => {
+  const sections = summary.split("*").filter((s) => s.trim() !== "");
+  return (
+    <div className="space-y-4">
+      {sections.map((section, index) => {
+        const lines = section
+          .split("\\n")
+          .map((l) => l.trim())
+          .filter((l) => l);
+        const title = lines.shift() || "";
+        return (
+          <div key={index}>
+            <h4 className="font-bold text-gray-800">{title}</h4>
+            <ul className="list-disc list-inside mt-1 space-y-1 text-gray-600">
+              {lines.map((line, lineIndex) => (
+                <li key={lineIndex}>{line.replace(/^- /, "")}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export default function LessonScreen({
+  lessonPlan,
   objective,
   onBack,
-  onDiscoveryComplete,
+  onLessonComplete, // Renamed for clarity
 }) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [lessonData, setLessonData] = useState(null);
+  // ... (state and functions like handleOptionSelect remain the same)
   const [currentStep, setCurrentStep] = useState(0);
   const [view, setView] = useState("discovery");
   const [selectedOption, setSelectedOption] = useState(null);
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
-    const fetchLesson = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch("/api/generate-lesson", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            objectiveTitle: objective.title,
-            objectiveType: objective.type,
-          }),
-        });
-        if (!response.ok) throw new Error("Could not generate lesson.");
-        const data = await response.json();
-        setLessonData(data);
-      } catch (err) {
-        console.error(err);
-        setLessonData({
-          error: "Failed to load this lesson. Please try again.",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchLesson();
-  }, [objective]);
+    setCurrentStep(0);
+    setView("discovery");
+    setSelectedOption(null);
+    setFeedback("");
+  }, [lessonPlan]);
+
+  if (!lessonPlan) {
+    return (
+      <div className="w-full max-w-md mx-auto p-8 text-center">
+        <p className="text-red-500">Lesson data is missing. Please go back.</p>
+        <button onClick={onBack} className="mt-4 text-sm text-blue-600">
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  if (lessonPlan.error || !lessonPlan.discovery_script) {
+    return (
+      <div className="w-full max-w-md mx-auto p-8 text-center">
+        <p className="text-red-500">
+          {lessonPlan.error || "An unknown error occurred."}
+        </p>
+        <button onClick={onBack} className="mt-4 text-sm text-blue-600">
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  const stepData = lessonPlan.discovery_script[currentStep];
 
   const handleOptionSelect = (option, index) => {
     setSelectedOption(index);
     setFeedback("");
     if (option.isCorrect) {
       setTimeout(() => {
-        if (currentStep < lessonData.discovery_script.length - 1) {
+        if (currentStep < lessonPlan.discovery_script.length - 1) {
           setCurrentStep((prev) => prev + 1);
         } else {
           setView("blueprint");
@@ -64,63 +97,60 @@ export default function LessonScreen({
     }
   };
 
-  if (isLoading || !lessonData) {
-    return (
-      <div className="w-full max-w-md mx-auto p-8 text-center">
-        <p>Your tutor is preparing the lesson...</p>
-      </div>
-    );
-  }
-
-  if (lessonData.error || !lessonData.discovery_script) {
-    return (
-      <div className="w-full max-w-md mx-auto p-8 text-center">
-        <p className="text-red-500">
-          {lessonData.error || "An unknown error occurred."}
-        </p>
-        <button onClick={onBack} className="mt-4 text-sm text-blue-600">
-          Go Back
-        </button>
-      </div>
-    );
-  }
-
-  const stepData = lessonData.discovery_script[currentStep];
-
   return (
-    <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-4 sm:p-8 flex flex-col h-[95vh]">
-      <div className="flex justify-between items-center mb-4">
+    <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-4 sm:p-6 flex flex-col h-[95vh]">
+      {/* ... (header and discovery view remain the same) ... */}
+      <div className="flex items-center mb-4">
         <button
           onClick={onBack}
-          className="text-sm text-gray-600 hover:text-black"
+          className="text-gray-500 hover:text-black p-2 rounded-full"
         >
-          &larr; Back to Plan
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
         </button>
-        <h2 className="text-lg text-center font-bold">{objective.title}</h2>
-        <div className="w-16"></div>
+        <h2 className="text-base md:text-lg text-center font-bold text-gray-800 flex-1 mx-2">
+          {objective.title}
+        </h2>
+        <div className="w-10"></div>
       </div>
       <AnimatePresence mode="wait">
-        {view === "discovery" && (
+        {view === "discovery" && stepData && (
           <motion.div
-            key="discovery"
+            key={currentStep}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col flex-grow"
+            className="flex flex-col flex-grow min-h-0"
           >
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 my-4">
-              <p className="whitespace-pre-wrap">{stepData.reveal}</p>
+            <div className="flex-grow overflow-y-auto px-2">
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 my-4">
+                <p className="whitespace-pre-wrap text-gray-800">
+                  {stepData.reveal}
+                </p>
+              </div>
+              <div className="w-full text-center mt-4 p-2">
+                <p className="font-semibold text-gray-700">{stepData.prompt}</p>
+              </div>
             </div>
-            <div className="w-full text-center mt-4 p-4">
-              <p className="font-semibold">{stepData.prompt}</p>
-            </div>
-            <div className="w-full space-y-3 mt-4">
+            <div className="w-full space-y-3 pt-4 border-t border-gray-100">
               {stepData.options.map((option, index) => (
                 <button
                   key={index}
                   onClick={() => handleOptionSelect(option, index)}
                   disabled={selectedOption !== null}
-                  className={`w-full p-4 text-center rounded-lg border-2 font-semibold transition-all duration-300 ${
+                  className={`w-full p-3 md:p-4 text-center rounded-lg border-2 font-semibold text-sm md:text-base transition-all duration-300 ${
                     selectedOption === index
                       ? option.isCorrect
                         ? "bg-green-100 border-green-500"
@@ -133,7 +163,7 @@ export default function LessonScreen({
               ))}
             </div>
             {feedback && (
-              <p className="text-red-600 text-sm mt-2 p-2 text-center">
+              <p className="text-red-600 text-xs text-center mt-2 p-2">
                 {feedback}
               </p>
             )}
@@ -145,25 +175,25 @@ export default function LessonScreen({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col flex-grow"
+            className="flex flex-col flex-grow min-h-0"
           >
             <div className="text-center">
               <h3 className="text-2xl font-bold text-green-600">
                 Awesome Work! 🚀
               </h3>
-              <p className="text-gray-600 mt-2">{lessonData.blueprint.title}</p>
+              <p className="text-gray-600 mt-2">{lessonPlan.blueprint.title}</p>
             </div>
-            <div className="my-6 p-4 bg-gray-50 rounded-lg border whitespace-pre-wrap">
-              {lessonData.blueprint.summary}
+            <div className="my-6 p-4 bg-gray-50 rounded-lg border flex-grow overflow-y-auto">
+              <BlueprintRenderer summary={lessonPlan.blueprint.summary} />
             </div>
-            {/* THIS IS THE FIX FOR THE BUTTON TEXT */}
+            {/* THIS IS THE CHANGE */}
             <button
-              onClick={() => onDiscoveryComplete(lessonData.challenges)}
-              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-auto"
+              onClick={() => onLessonComplete()}
+              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-4 flex-shrink-0"
             >
-              {objective.type === "homework" && objective.label
-                ? `Ready for Question ${objective.label}`
-                : "I'm ready for the challenges!"}
+              {objective.type === "homework"
+                ? "Show Me the Solution"
+                : "I'm Ready for the Challenges!"}
             </button>
           </motion.div>
         )}
