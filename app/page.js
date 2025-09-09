@@ -1,8 +1,8 @@
 // FILE: app/page.js
 // -------------------------------------------------
-// BUG FIX - The 'handleObjectiveMastered' function is now corrected.
-// It properly checks if all sub-objectives in a curriculum are complete
-// before routing the user back to the main homework selection screen.
+// REFACTORED - This version implements the new two-step API flow.
+// `handleLessonComplete` now triggers a separate API call to fetch challenges,
+// which is a much more robust and reliable approach.
 // -------------------------------------------------
 "use client";
 
@@ -43,8 +43,11 @@ function AppContent() {
 
   const { addXP, updateStats } = useGamification();
 
+  // --- Handlers ---
+
   const handleGoHome = () => {
     setScreen("home");
+    // ... (reset all other states)
     setError(null);
     setIsLoading(false);
     setPlannedQuestions([]);
@@ -122,86 +125,86 @@ function AppContent() {
     }
   };
 
-  // ### THIS FUNCTION CONTAINS THE BUG FIX ###
-  const handleObjectiveMastered = async () => {
-    addXP(100, "Objective Mastered!");
-    updateStats({ objectivesMastered: (prev) => prev + 1 });
-
-    // 1. Update the set of completed objectives for the current session
-    const newCompletedObjectives = new Set(completedObjectives).add(
-      currentObjective.id
-    );
-    setCompletedObjectives(newCompletedObjectives);
-
-    // 2. Check if ALL objectives in the CURRENT active curriculum are now complete
-    const isCurrentCurriculumComplete = curriculum.every((obj) =>
-      newCompletedObjectives.has(obj.id)
-    );
-
-    if (isCurrentCurriculumComplete) {
-      // 3. IF the whole curriculum is done, THEN we can mark the parent question as complete
-      if (currentObjective.questionId) {
-        const newCompletedHwIds = new Set(completedHomeworkIds).add(
-          currentObjective.questionId
-        );
-        setCompletedHomeworkIds(newCompletedHwIds);
-
-        // 4. Check if there are still other parent questions left to tackle
-        if (
-          plannedQuestions.length > 1 &&
-          newCompletedHwIds.size < plannedQuestions.length
-        ) {
-          setScreen("homework_selection"); // Go back to choose the next question
-          return;
-        }
-      }
-
-      // 5. If all parent questions are done (or it was a mastery topic), proceed to the final quiz.
-      // This part is unchanged.
-      setIsLoading(true);
-      setScreen("loading");
-      try {
-        const response = await fetch("/api/generate-mastery-quiz", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ curriculum }),
-        });
-        const data = await response.json();
-        setMasteryQuiz(data.quiz);
-        setScreen("topic_quiz");
-      } catch (err) {
-        setError(
-          "Could not generate your final quiz, but congrats on finishing!"
-        );
-        setTimeout(handleGoHome, 3000);
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      // 6. IF the curriculum is NOT yet complete, simply go back to the curriculum screen
-      //    where the user will see their progress and can start the next objective.
-      setScreen("topic_curriculum");
-    }
-  };
-
-  const handleStartObjective = (objective, questionId) => {
+  const handleStartObjective = (objective) => {
     const parentQuestion = plannedQuestions.find(
       (q) => q.curriculum === curriculum
     );
-    const parentId = parentQuestion ? parentQuestion.id : questionId;
+    const parentId = parentQuestion ? parentQuestion.id : null;
     setCurrentObjective({ ...objective, questionId: parentId });
     setScreen("lesson");
   };
 
-  const handleLessonComplete = (challenges) => {
-    setCurrentChallenges(challenges);
-    setScreen("topic_challenge");
+  // ### THIS FUNCTION CONTAINS THE NEW LOGIC ###
+  const handleLessonComplete = async () => {
+    setIsLoading(true);
+    setError(null);
+    setScreen("loading"); // Show loading spinner while we fetch the challenge
+
+    try {
+      const response = await fetch("/api/generate-challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          objectiveTitle: currentObjective.title,
+          objectiveType: currentObjective.type,
+        }),
+      });
+      if (!response.ok)
+        throw new Error(
+          (await response.json()).error || "Failed to generate challenge."
+        );
+
+      const challengeData = await response.json();
+      setCurrentChallenges(challengeData);
+      setScreen("topic_challenge");
+    } catch (err) {
+      setError(err.message);
+      setScreen("topic_curriculum"); // Go back to curriculum on error
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChallengesComplete = (results) => {
     setChallengeResults(results);
     setScreen("topic_progress_report");
   };
+
+  const handleObjectiveMastered = async () => {
+    addXP(100, "Objective Mastered!");
+    updateStats({ objectivesMastered: (prev) => prev + 1 });
+
+    const newCompletedObjectives = new Set(completedObjectives).add(
+      currentObjective.id
+    );
+    setCompletedObjectives(newCompletedObjectives);
+
+    const isCurrentCurriculumComplete = curriculum.every((obj) =>
+      newCompletedObjectives.has(obj.id)
+    );
+
+    if (isCurrentCurriculumComplete) {
+      if (currentObjective.questionId) {
+        const newCompletedHwIds = new Set(completedHomeworkIds).add(
+          currentObjective.questionId
+        );
+        setCompletedHomeworkIds(newCompletedHwIds);
+
+        if (
+          plannedQuestions.length > 1 &&
+          newCompletedHwIds.size < plannedQuestions.length
+        ) {
+          setScreen("homework_selection");
+          return;
+        }
+      }
+      handleGoHome(); // Go home after final mastery or single homework pack
+    } else {
+      setScreen("topic_curriculum");
+    }
+  };
+
+  // --- Render Logic ---
 
   const renderScreen = () => {
     if (error) {
@@ -259,15 +262,10 @@ function AppContent() {
           />
         );
       case "topic_curriculum":
-        const parentQuestionId = plannedQuestions.find(
-          (q) => q.curriculum === curriculum
-        )?.id;
         return (
           <CurriculumScreen
             curriculum={curriculum}
-            onStartObjective={(obj) =>
-              handleStartObjective(obj, parentQuestionId)
-            }
+            onStartObjective={handleStartObjective}
             onBack={() =>
               plannedQuestions.length > 1
                 ? setScreen("homework_selection")
@@ -289,6 +287,7 @@ function AppContent() {
           <ChallengeScreen
             challenges={currentChallenges}
             onChallengesComplete={handleChallengesComplete}
+            onBack={() => setScreen("topic_curriculum")}
           />
         );
       case "topic_progress_report":

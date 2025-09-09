@@ -1,7 +1,7 @@
 // FILE: app/components/LessonScreen.jsx
 // -------------------------------------------------
-// NEW - This is the official, interactive lesson component.
-// It replaces the old chat-style LessonScreen and DiscoveryScreen.
+// MODIFIED - The call-to-action button now dynamically displays the
+// question label if it exists.
 // -------------------------------------------------
 "use client";
 import { useState, useEffect } from "react";
@@ -23,7 +23,6 @@ export default function LessonScreen({
     const fetchLesson = async () => {
       setIsLoading(true);
       try {
-        // Fetch from our new, context-aware API
         const response = await fetch("/api/generate-lesson", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -32,10 +31,14 @@ export default function LessonScreen({
             objectiveType: objective.type,
           }),
         });
+        if (!response.ok) throw new Error("Could not generate lesson.");
         const data = await response.json();
         setLessonData(data);
       } catch (err) {
         console.error(err);
+        setLessonData({
+          error: "Failed to load this lesson. Please try again.",
+        });
       } finally {
         setIsLoading(false);
       }
@@ -61,12 +64,26 @@ export default function LessonScreen({
     }
   };
 
-  if (isLoading || !lessonData)
+  if (isLoading || !lessonData) {
     return (
       <div className="w-full max-w-md mx-auto p-8 text-center">
         <p>Your tutor is preparing the lesson...</p>
       </div>
     );
+  }
+
+  if (lessonData.error || !lessonData.discovery_script) {
+    return (
+      <div className="w-full max-w-md mx-auto p-8 text-center">
+        <p className="text-red-500">
+          {lessonData.error || "An unknown error occurred."}
+        </p>
+        <button onClick={onBack} className="mt-4 text-sm text-blue-600">
+          Go Back
+        </button>
+      </div>
+    );
+  }
 
   const stepData = lessonData.discovery_script[currentStep];
 
@@ -139,11 +156,14 @@ export default function LessonScreen({
             <div className="my-6 p-4 bg-gray-50 rounded-lg border whitespace-pre-wrap">
               {lessonData.blueprint.summary}
             </div>
+            {/* THIS IS THE FIX FOR THE BUTTON TEXT */}
             <button
               onClick={() => onDiscoveryComplete(lessonData.challenges)}
               className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-auto"
             >
-              Okay, I'm ready for the challenges!
+              {objective.type === "homework" && objective.label
+                ? `Ready for Question ${objective.label}`
+                : "I'm ready for the challenges!"}
             </button>
           </motion.div>
         )}

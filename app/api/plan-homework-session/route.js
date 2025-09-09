@@ -1,8 +1,7 @@
 // FILE: app/api/plan-homework-session/route.js
 // -------------------------------------------------
-// NEW & FINAL - This single, powerful API replaces the previous two.
-// It analyzes the homework, identifies all questions, and breaks each one
-// down into granular, well-titled sub-objectives in one step.
+// MODIFIED - The AI is now instructed to add a "label" (e.g., "4.1")
+// to each curriculum objective for homework.
 // -------------------------------------------------
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -27,16 +26,16 @@ export async function POST(request) {
 
       You MUST follow these steps precisely:
       1.  Identify each main question on the page (e.g., Question 4, Question 5).
-      2.  For EACH main question, create a "plannedQuestion" object.
-      3.  This object must have an "id" (e.g., "q4") and a short, descriptive "title" (e.g., "Question 4: Pyramid Geometry").
-      4.  Inside this object, create a "curriculum" array.
-      5.  For EACH sub-question within the main question (e.g., 4.1, 4.2), create a separate objective object inside the "curriculum" array.
-      6.  Each curriculum objective MUST have:
+      2.  For EACH main question, create a "plannedQuestion" object with an "id" and a short "title".
+      3.  Inside this object, create a "curriculum" array.
+      4.  For EACH sub-question (e.g., 4.1, 4.2), create a separate objective object inside the "curriculum" array.
+      5.  Each curriculum objective MUST have FOUR keys:
           - "id": a unique identifier (e.g., "hw_q4_1").
-          - "title": A user-friendly learning goal starting with "Learn how to...". For "4.1 Show that the height is 7,5 cm", the title should be "Learn how to find the pyramid's perpendicular height".
+          - "label": The original question number (e.g., "4.1").
+          - "title": A user-friendly learning goal (e.g., "Learn how to find the pyramid's perpendicular height").
           - "type": This must ALWAYS be "homework".
 
-      The final output must be a JSON object with a single key "plannedQuestions", which is an array of these fully structured "plannedQuestion" objects.
+      The final output must be a JSON object with a single key "plannedQuestions".
       Output ONLY the raw JSON.`;
 
     const buffer = Buffer.from(await imageFile.arrayBuffer());

@@ -1,7 +1,7 @@
 // FILE: app/components/ChallengeScreen.jsx
 // -------------------------------------------------
-// MODIFIED - This component is now flexible. It checks if `challenges`
-// is an array (for homework) or an object (for mastery) and renders accordingly.
+// BUG FIX - The ChallengeMCQ component is now updated to handle the
+// standardized options format (array of objects with a .text property).
 // -------------------------------------------------
 "use client";
 import { useState, useEffect } from "react";
@@ -12,8 +12,7 @@ const ChallengeMCQ = ({ challenge, onAnswered, difficulty }) => {
 
   const handleSelect = (option) => {
     setSelectedOption(option);
-    const isCorrect = option === challenge.correctAnswer;
-    setTimeout(() => onAnswered(isCorrect), 1200);
+    setTimeout(() => onAnswered(option.isCorrect), 1200);
   };
 
   const difficultyStyles = {
@@ -39,15 +38,15 @@ const ChallengeMCQ = ({ challenge, onAnswered, difficulty }) => {
             disabled={selectedOption !== null}
             className={`w-full p-4 text-center rounded-lg border-2 font-semibold transition-all duration-300 ${
               selectedOption
-                ? option === challenge.correctAnswer
+                ? option.isCorrect
                   ? "bg-green-100 border-green-500"
-                  : option === selectedOption
+                  : selectedOption.text === option.text
                   ? "bg-red-100 border-red-500"
                   : "bg-white border-gray-200"
                 : "bg-white border-gray-200 hover:bg-gray-100"
             }`}
           >
-            {option}
+            {option.text}
           </button>
         ))}
       </div>
@@ -55,20 +54,24 @@ const ChallengeMCQ = ({ challenge, onAnswered, difficulty }) => {
   );
 };
 
-export default function ChallengeScreen({ challenges, onChallengesComplete }) {
+export default function ChallengeScreen({
+  challenges,
+  onChallengesComplete,
+  onBack,
+}) {
   const [challengeIndex, setChallengeIndex] = useState(0);
   const [results, setResults] = useState([]);
 
-  // Determine if this is a single homework challenge or a 3-part mastery challenge
   const isSingleChallenge = Array.isArray(challenges);
 
   const challengeOrder = ["easy", "medium", "hard"];
   const currentDifficulty = isSingleChallenge
     ? "homework"
     : challengeOrder[challengeIndex];
+
   const currentChallenge = isSingleChallenge
-    ? challenges[0]
-    : challenges[currentDifficulty];
+    ? (challenges || [])[0]
+    : (challenges || {})[currentDifficulty];
 
   useEffect(() => {
     setChallengeIndex(0);
@@ -81,7 +84,7 @@ export default function ChallengeScreen({ challenges, onChallengesComplete }) {
       if (currentDifficulty === "easy") points = 10;
       else if (currentDifficulty === "medium") points = 20;
       else if (currentDifficulty === "hard") points = 30;
-      else if (currentDifficulty === "homework") points = 50; // Special points for homework
+      else if (currentDifficulty === "homework") points = 50;
     }
     const newResults = [
       ...results,
@@ -98,7 +101,21 @@ export default function ChallengeScreen({ challenges, onChallengesComplete }) {
 
   if (!currentChallenge) {
     return (
-      <div className="p-8 font-sans text-center">Loading challenge...</div>
+      <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8 text-center">
+        <h2 className="text-xl font-bold text-red-600 mb-4">
+          Oops! Something went wrong.
+        </h2>
+        <p className="text-gray-600 mb-6">
+          We couldn't load the challenge for this lesson. Please go back and try
+          again.
+        </p>
+        <button
+          onClick={onBack}
+          className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg"
+        >
+          Back to Plan
+        </button>
+      </div>
     );
   }
 
