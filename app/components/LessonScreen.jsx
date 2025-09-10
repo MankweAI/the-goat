@@ -2,6 +2,7 @@
 // -------------------------------------------------
 // BUG FIX - The component is now more resilient. It checks if stepData.options
 // exists. If not, it renders a simple "Continue" button instead of crashing.
+// ENHANCED - The "Blueprint" view has been polished to be more celebratory and visually rewarding.
 // -------------------------------------------------
 "use client";
 import { useState, useEffect } from "react";
@@ -193,27 +194,37 @@ export default function LessonScreen({
         {view === "blueprint" && (
           <motion.div
             key="blueprint"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
             className="flex flex-col flex-grow min-h-0"
           >
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-green-600">
-                Awesome Work! 🚀
+              <h3 className="text-2xl font-bold text-gray-800">
+                Objective Complete!
               </h3>
-              <p className="text-gray-600 mt-2">{lessonPlan.blueprint.title}</p>
+              <p className="text-gray-500 mt-1">{lessonPlan.blueprint.title}</p>
             </div>
-            <div className="my-6 p-4 bg-gray-50 rounded-lg border flex-grow overflow-y-auto">
+
+            {/* Redesigned Summary Area */}
+            <div className="my-6 p-5 bg-white rounded-2xl border-2 border-gray-200 flex-grow overflow-y-auto">
+              <div className="flex items-center">
+                <span className="text-2xl mr-3">💡</span>
+                <h4 className="font-bold text-lg text-gray-800">
+                  Learning Summary
+                </h4>
+              </div>
+              <hr className="my-3 border-gray-200" />
               <BlueprintRenderer summary={lessonPlan.blueprint.summary} />
             </div>
+
             <button
               onClick={() => onLessonComplete()}
-              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-4 flex-shrink-0"
+              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-4 flex-shrink-0 transition-transform duration-200 hover:scale-105"
             >
               {objective.type === "homework" && objective.label
-                ? `Ready for Question ${objective.label}`
-                : "I'm Ready for the Challenges!"}
+                ? `Continue to Question ${objective.label}`
+                : "Continue to Challenges"}
             </button>
           </motion.div>
         )}

@@ -1,10 +1,10 @@
 // FILE: app/components/HomeScreen.jsx
 // -------------------------------------------------
-// REDESIGNED - All gamification elements have been removed.
-// Features a new, clean header and a focused layout.
+// BUG FIX & ENHANCEMENT - The time-of-day logic is now more accurate.
+// The greeting emoji is now also dynamic and changes with the time.
 // -------------------------------------------------
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ComingSoonModal from "./ComingSoonModal";
 
@@ -26,28 +26,50 @@ const FEATURE_STYLES = {
   },
 };
 
+// Helper function with corrected time-of-day logic
+const getGreeting = () => {
+  const hour = new Date().getHours();
+
+  // Morning: From 5 AM up to 12 PM (noon)
+  if (hour >= 5 && hour < 12) {
+    return { text: "Good morning!", emoji: "☀️" };
+  }
+  // Afternoon: From 12 PM (noon) up to 6 PM (18:00)
+  if (hour >= 12 && hour < 18) {
+    return { text: "Hey there!", emoji: "👋" };
+  }
+  // Evening: From 6 PM (18:00) onwards
+  return { text: "Good evening!", emoji: "🌙" };
+};
+
 export default function HomeScreen({ onStartTopicMastery, onStartHomework }) {
   const [showComingSoon, setShowComingSoon] = useState(false);
+  const [greeting, setGreeting] = useState({ text: "Welcome!", emoji: "👋" });
+
+  // Set the greeting on the client-side to ensure it uses the user's local time
+  useEffect(() => {
+    setGreeting(getGreeting());
+  }, []);
 
   const FEATURES = [
     {
       id: "homework",
-      title: "Solve Homework",
-      subtitle: "Get a step-by-step learning plan",
+      title: "Homeworks & Questions",
+      subtitle: "Get clear step-by-step solutions",
       icon: "🧠",
       action: () => onStartHomework(),
     },
     {
       id: "mastery",
       title: "Master a Topic",
-      subtitle: "Build a plan for any concept",
+      subtitle: "Master any topic in 5 minutes",
       icon: "✍️",
       action: () => onStartTopicMastery(),
     },
     {
       id: "papers",
       title: "Past Question Papers",
-      subtitle: "Practice with official exam papers",
+      subtitle: "Chat with or download official exam papers",
       icon: "📄",
       action: () => setShowComingSoon(true),
     },
@@ -61,7 +83,7 @@ export default function HomeScreen({ onStartTopicMastery, onStartHomework }) {
         transition={{ duration: 0.5 }}
         className="text-3xl md:text-4xl font-bold text-gray-800"
       >
-        Good afternoon! ☀️
+        {greeting.text} {greeting.emoji}
       </motion.h1>
       <motion.p
         initial={{ y: -20, opacity: 0 }}

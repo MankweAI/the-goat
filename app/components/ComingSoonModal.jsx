@@ -22,7 +22,7 @@ export default function ComingSoonModal({ onClose }) {
         <div className="text-5xl mb-4">🗓️</div>
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Coming Soon!</h2>
         <p className="text-gray-600 mb-6">
-          Official Past Question Papers will be available starting tomorrow. Get
+          Smart Past Question Papers will be available very soon. Get
           ready!
         </p>
         <button
