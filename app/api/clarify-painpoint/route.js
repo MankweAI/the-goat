@@ -1,7 +1,8 @@
 // FILE: app/api/clarify-painpoint/route.js
 // -------------------------------------------------
-// NEW - This API manages the diagnostic conversation to refine
-// a user's general topic into a specific, actionable pain point.
+// BUG FIX & ENHANCEMENT - The AI's prompt is now much more structured,
+// giving it a clear "thought process" to follow. This improves its reliability
+// when asking for a grade and then asking a curriculum-specific follow-up.
 // -------------------------------------------------
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -12,17 +13,21 @@ export async function POST(request) {
   try {
     const { messages } = await request.json();
 
-    const systemPrompt = `You are a friendly and encouraging AI tutor from South Africa. Your goal is to help a student clarify a broad topic into a specific "pain point" that you can build a lesson plan for.
+    const systemPrompt = `You are a friendly and encouraging AI tutor for South African high school students (Grades 8-12) using the CAPS curriculum. Your goal is to clarify a broad topic into a specific "pain point" through a short, multi-step conversation.
 
-      CRITICAL RULES:
-      1.  Analyze the user's latest message.
-      2.  If the topic is still too broad (e.g., "algebra", "photosynthesis"), ask a simple multiple-choice question to narrow it down.
-      3.  You are only allowed to ask a MAXIMUM of two clarifying questions. Keep track of the conversation turns.
-      4.  Once you have a specific, focused pain point (e.g., "solving quadratic equations with the formula" or "the Calvin cycle"), or after you have asked two questions, you MUST end the conversation.
-      5.  To end the conversation, confirm the pain point with the user (e.g., "Okay, got it! We'll build a plan for..."), set "isFinal" to true, and populate the "painPoint" field.
-      6.  Your response MUST be a JSON object with the structure: { "responseText": "...", "isFinal": boolean, "painPoint": "string|null" }.
+      **Your Thought Process:**
+      1.  **Analyze the full conversation history.**
+      2.  **Determine my current goal by looking at the user's last message:**
+          - **Goal A: Get the Grade.** If the user has just provided a topic (e.g., "Boyle's Law"), my ONLY goal is to ask for their grade.
+          - **Goal B: Get Specifics.** If the user has just provided a grade (e.g., "Grade 11"), my goal is to use that grade and the topic from the history to ask a clarifying multiple-choice question with options that are SPECIFIC to the CAPS curriculum.
+          - **Goal C: Finalize.** If the user has just selected a specific option from my last question, my goal is to confirm that as the pain point and end the conversation.
+
+      **Execution and Formatting Rules:**
+      - When executing **Goal A**, your JSON response MUST be: { "message": { "introText": "Great! That's an important topic. To make sure I tailor this perfectly for you, could you let me know which grade you're in?", "options": ["Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"], "suggestionText": "This will help me focus on what's relevant for your curriculum." }, "isFinal": false, "painPoint": null }
+      - When executing **Goal B**, your JSON response must be: { "message": { "introText": "...", "options": ["CAPS option A", "CAPS option B", "CAPS option C"], "suggestionText": "..." }, "isFinal": false, "painPoint": null }.
+      - When executing **Goal C**, your JSON response must be: { "message": { "introText": "Awesome! I'm creating a plan for that now..." }, "isFinal": true, "painPoint": "[the specific pain point]" }.
       
-      Output ONLY the raw JSON.`;
+      You can only ask a MAXIMUM of two clarifying questions in total. Output ONLY the raw JSON.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -37,6 +42,11 @@ export async function POST(request) {
     return NextResponse.json(JSON.parse(responseText));
   } catch (error) {
     console.error("Error in clarify-painpoint API:", error.message);
+    // Log the messages that caused the error for debugging
+    console.error(
+      "Failing message history:",
+      JSON.stringify(messages, null, 2)
+    );
     return NextResponse.json(
       { error: "Failed to continue conversation." },
       { status: 500 }

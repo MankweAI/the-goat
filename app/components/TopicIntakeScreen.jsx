@@ -1,11 +1,40 @@
 // FILE: app/components/TopicIntakeScreen.jsx
 // -------------------------------------------------
-// REDESIGNED - This component is now a self-contained chat interface
-// that guides the user from a broad topic to a specific pain point.
+// RE-ARCHITECTED - This component now takes structured data from the API and
+// formats it perfectly every time. It renders the AI's suggested options
+// as clickable buttons for a better user experience.
 // -------------------------------------------------
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+const AssistantMessage = ({ message, onOptionClick }) => {
+  // If content is just a string, render it simply
+  if (typeof message.content === "string") {
+    return <p className="whitespace-pre-line">{message.content}</p>;
+  }
+
+  // If content is a structured object, render the formatted list
+  return (
+    <div>
+      <p className="whitespace-pre-line">{message.content.introText}</p>
+      <div className="space-y-2 mt-3">
+        {message.content.options.map((option, index) => (
+          <button
+            key={index}
+            onClick={() => onOptionClick(option)}
+            className="w-full text-left text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 hover:bg-blue-100 transition-colors"
+          >
+            {`${String.fromCharCode(65 + index)}) ${option}`}
+          </button>
+        ))}
+      </div>
+      <p className="whitespace-pre-line mt-3 text-sm text-gray-600">
+        {message.content.suggestionText}
+      </p>
+    </div>
+  );
+};
 
 export default function TopicIntakeScreen({
   onGenerateCurriculum,
@@ -16,7 +45,7 @@ export default function TopicIntakeScreen({
     {
       role: "assistant",
       content:
-        "Hey there! I can help you master any topic in 5 minutes. What topic is on your mind today? 😊",
+        "Hey there! I can create a personalized learning plan for you. What topic is on your mind today? 😊",
     },
   ]);
   const [inputValue, setInputValue] = useState("");
@@ -28,7 +57,7 @@ export default function TopicIntakeScreen({
   }, [messages, isTyping]);
 
   const handleSendMessage = async (content) => {
-    if (!content.trim()) return;
+    if (!content.trim() && !isLoading) return;
 
     const userMessage = { role: "user", content };
     const newMessages = [...messages, userMessage];
@@ -46,17 +75,17 @@ export default function TopicIntakeScreen({
 
       const data = await response.json();
 
+      // The content can be a string OR our new structured message object
       const assistantMessage = {
         role: "assistant",
-        content: data.responseText,
+        content: data.message ? data.message : data.responseText,
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
       if (data.isFinal && data.painPoint) {
-        // Conversation is over, generate the curriculum!
         setTimeout(() => {
           onGenerateCurriculum(data.painPoint);
-        }, 1500); // Small delay to let the user read the final message
+        }, 1500);
       }
     } catch (err) {
       const errorMessage = {
@@ -115,7 +144,10 @@ export default function TopicIntakeScreen({
                   : "bg-gray-200 text-gray-800 rounded-bl-lg"
               }`}
             >
-              {msg.content}
+              <AssistantMessage
+                message={msg}
+                onOptionClick={handleSendMessage}
+              />
             </div>
           </motion.div>
         ))}
