@@ -3,6 +3,9 @@
 // BUG FIX & ENHANCEMENT - The AI's prompt is now much more structured,
 // giving it a clear "thought process" to follow. This improves its reliability
 // when asking for a grade and then asking a curriculum-specific follow-up.
+// FIXED - The `messages` object is now correctly stringified before being sent
+// to the OpenAI API to prevent type errors. The variable scope in the error
+// handler has also been corrected.
 // -------------------------------------------------
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -10,8 +13,11 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(request) {
+  // Declare messages in a broader scope to be accessible in the catch block
+  let requestMessages;
   try {
-    const { messages } = await request.json();
+    const body = await request.json();
+    requestMessages = body.messages;
 
     const systemPrompt = `You are a friendly and encouraging AI tutor for South African high school students (Grades 8-12) using the CAPS curriculum. Your goal is to clarify a broad topic into a specific "pain point" through a short, multi-step conversation.
 
@@ -25,15 +31,24 @@ export async function POST(request) {
       **Execution and Formatting Rules:**
       - When executing **Goal A**, your JSON response MUST be: { "message": { "introText": "Great! That's an important topic. To make sure I tailor this perfectly for you, could you let me know which grade you're in?", "options": ["Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"], "suggestionText": "This will help me focus on what's relevant for your curriculum." }, "isFinal": false, "painPoint": null }
       - When executing **Goal B**, your JSON response must be: { "message": { "introText": "...", "options": ["CAPS option A", "CAPS option B", "CAPS option C"], "suggestionText": "..." }, "isFinal": false, "painPoint": null }.
-      - When executing **Goal C**, your JSON response must be: { "message": { "introText": "Awesome! I'm creating a plan for that now..." }, "isFinal": true, "painPoint": "[the specific pain point]" }.
+      - When executing **Goal C**, your JSON response MUST be: { "message": "Awesome! I'm creating a plan for that now...", "isFinal": true, "painPoint": "[the specific pain point]" }.
       
       You can only ask a MAXIMUM of two clarifying questions in total. Output ONLY the raw JSON.`;
+
+    // Process messages to ensure content is always a string for the API
+    const processedMessages = requestMessages.map((msg) => ({
+      role: msg.role,
+      content:
+        typeof msg.content === "string"
+          ? msg.content
+          : JSON.stringify(msg.content),
+    }));
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
-        ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
+        ...processedMessages,
       ],
       response_format: { type: "json_object" },
     });
@@ -43,10 +58,12 @@ export async function POST(request) {
   } catch (error) {
     console.error("Error in clarify-painpoint API:", error.message);
     // Log the messages that caused the error for debugging
-    console.error(
-      "Failing message history:",
-      JSON.stringify(messages, null, 2)
-    );
+    if (requestMessages) {
+      console.error(
+        "Failing message history:",
+        JSON.stringify(requestMessages, null, 2)
+      );
+    }
     return NextResponse.json(
       { error: "Failed to continue conversation." },
       { status: 500 }

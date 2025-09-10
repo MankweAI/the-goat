@@ -1,40 +1,17 @@
 // FILE: app/components/LessonScreen.jsx
 // -------------------------------------------------
-// BUG FIX - The component is now more resilient. It checks if stepData.options
-// exists. If not, it renders a simple "Continue" button instead of crashing.
-// ENHANCED - The "Blueprint" view has been polished to be more celebratory and visually rewarding.
+// RE-ARCHITECTED - This component is now fully dynamic. It manages state
+// for the displayed content and an example counter. When a user clicks the new
+// "I don't understand" option, it cycles through pre-generated simpler examples
+// from the API, replacing the main lesson text without advancing the step.
+// ENHANCED - The "I don't understand" button is now adaptive. Its text changes
+// after the first click, and the button is removed entirely after the last
+// available example has been shown.
 // -------------------------------------------------
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import "katex/dist/katex.min.css";
-import { InlineMath, BlockMath } from "react-katex";
-
-const BlueprintRenderer = ({ summary }) => {
-  if (!summary) return null;
-  const sections = summary.split("*").filter((s) => s.trim() !== "");
-  return (
-    <div className="space-y-4">
-      {sections.map((section, index) => {
-        const lines = section
-          .split("\\n")
-          .map((l) => l.trim())
-          .filter((l) => l);
-        const title = lines.shift() || "";
-        return (
-          <div key={index}>
-            <h4 className="font-bold text-gray-800">{title}</h4>
-            <ul className="list-disc list-inside mt-1 space-y-1 text-gray-600">
-              {lines.map((line, lineIndex) => (
-                <li key={lineIndex}>{line.replace(/^- /, "")}</li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 export default function LessonScreen({
   lessonPlan,
@@ -47,29 +24,25 @@ export default function LessonScreen({
   const [selectedOption, setSelectedOption] = useState(null);
   const [feedback, setFeedback] = useState("");
 
+  // New state for dynamic content
+  const [displayContent, setDisplayContent] = useState("");
+  const [exampleIndex, setExampleIndex] = useState(0);
+
+  const stepData = lessonPlan?.discovery_script?.[currentStep];
+
+  // Update content when the lesson step changes
   useEffect(() => {
-    setCurrentStep(0);
-    setView("discovery");
-    setSelectedOption(null);
-    setFeedback("");
-  }, [lessonPlan]);
+    if (stepData) {
+      setDisplayContent(stepData.reveal);
+      setExampleIndex(0); // Reset for the new step
+    }
+  }, [currentStep, stepData]);
 
-  if (!lessonPlan) {
-    return (
-      <div className="w-full max-w-md mx-auto p-8 text-center">
-        <p className="text-red-500">Lesson data is missing. Please go back.</p>
-        <button onClick={onBack} className="mt-4 text-sm text-blue-600">
-          Go Back
-        </button>
-      </div>
-    );
-  }
-
-  if (lessonPlan.error || !lessonPlan.discovery_script) {
+  if (!lessonPlan || lessonPlan.error || !lessonPlan.discovery_script) {
     return (
       <div className="w-full max-w-md mx-auto p-8 text-center">
         <p className="text-red-500">
-          {lessonPlan.error || "An unknown error occurred."}
+          {lessonPlan?.error || "Lesson data is missing or invalid."}
         </p>
         <button onClick={onBack} className="mt-4 text-sm text-blue-600">
           Go Back
@@ -78,8 +51,6 @@ export default function LessonScreen({
     );
   }
 
-  const stepData = lessonPlan.discovery_script[currentStep];
-
   const advanceToNextStep = () => {
     if (currentStep < lessonPlan.discovery_script.length - 1) {
       setCurrentStep((prev) => prev + 1);
@@ -87,17 +58,31 @@ export default function LessonScreen({
       setView("blueprint");
     }
     setSelectedOption(null);
+    setFeedback("");
   };
 
   const handleOptionSelect = (option) => {
     setSelectedOption(option);
     setFeedback("");
+
+    // If the user asks for help, cycle through examples
+    if (option.isHelpRequest) {
+      if (stepData.examples && stepData.examples.length > 0) {
+        setDisplayContent(stepData.examples[exampleIndex]);
+        // Increment index, but don't loop
+        setExampleIndex((prevIndex) => prevIndex + 1);
+      } else {
+        setDisplayContent("Let me try to rephrase that... " + stepData.reveal);
+      }
+      setTimeout(() => setSelectedOption(null), 500); // Re-enable buttons
+      return;
+    }
+
+    // Standard MCQ logic
     if (option.isCorrect) {
-      setTimeout(() => {
-        advanceToNextStep();
-      }, 1000);
+      setTimeout(advanceToNextStep, 1000);
     } else {
-      setFeedback(option.feedback);
+      setFeedback(option.feedback || "Eish, not quite. Give it another shot!");
       setTimeout(() => setSelectedOption(null), 2000);
     }
   };
@@ -139,11 +124,20 @@ export default function LessonScreen({
             className="flex flex-col flex-grow min-h-0"
           >
             <div className="flex-grow overflow-y-auto px-2">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 my-4">
-                <p className="whitespace-pre-wrap text-gray-800">
-                  {stepData.reveal}
-                </p>
-              </div>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={displayContent}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="p-4 bg-blue-50 rounded-lg border border-blue-200 my-4"
+                >
+                  <p className="whitespace-pre-wrap text-gray-800">
+                    {displayContent}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
               {stepData.prompt && (
                 <div className="w-full text-center mt-4 p-2">
                   <p className="font-semibold text-gray-700">
@@ -153,12 +147,26 @@ export default function LessonScreen({
               )}
             </div>
             <div className="w-full space-y-3 pt-4 border-t border-gray-100">
-              {/* ### THIS IS THE FIX ### */}
-              {/* We now check if options exist and are an array */}
-              {stepData.options &&
-              Array.isArray(stepData.options) &&
-              stepData.options.length > 0 ? (
-                stepData.options.map((option, index) => (
+              {(stepData.options || []).map((option, index) => {
+                if (option.isHelpRequest) {
+                  // Only render the help button if there are more examples to show
+                  if (exampleIndex >= (stepData.examples?.length || 0)) {
+                    return null;
+                  }
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleOptionSelect(option)}
+                      disabled={selectedOption !== null}
+                      className="w-full p-3 md:p-4 text-center rounded-lg border-2 font-semibold text-sm md:text-base transition-all duration-300 bg-amber-50 border-amber-300 hover:bg-amber-100 text-amber-800"
+                    >
+                      {exampleIndex === 0
+                        ? "I don't understand, can you explain it differently?"
+                        : "Explain again"}
+                    </button>
+                  );
+                }
+                return (
                   <button
                     key={index}
                     onClick={() => handleOptionSelect(option)}
@@ -173,16 +181,8 @@ export default function LessonScreen({
                   >
                     {option.text}
                   </button>
-                ))
-              ) : (
-                // If no options, render a simple Continue button
-                <button
-                  onClick={advanceToNextStep}
-                  className="w-full p-3 md:p-4 text-center rounded-lg border-2 font-semibold text-sm md:text-base bg-blue-500 text-white hover:bg-blue-600"
-                >
-                  Continue
-                </button>
-              )}
+                );
+              })}
             </div>
             {feedback && (
               <p className="text-red-600 text-xs text-center mt-2 p-2">
@@ -196,35 +196,24 @@ export default function LessonScreen({
             key="blueprint"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="flex flex-col flex-grow min-h-0"
+            className="flex flex-col flex-grow min-h-0 text-center"
           >
-            <div className="text-center">
-              <h3 className="text-2xl font-bold text-gray-800">
-                Objective Complete!
-              </h3>
-              <p className="text-gray-500 mt-1">{lessonPlan.blueprint.title}</p>
-            </div>
-
-            {/* Redesigned Summary Area */}
-            <div className="my-6 p-5 bg-white rounded-2xl border-2 border-gray-200 flex-grow overflow-y-auto">
-              <div className="flex items-center">
-                <span className="text-2xl mr-3">💡</span>
-                <h4 className="font-bold text-lg text-gray-800">
-                  Learning Summary
-                </h4>
-              </div>
+            <h3 className="text-2xl font-bold text-gray-800">
+              Objective Complete!
+            </h3>
+            <p className="text-gray-500 mt-1">{lessonPlan.blueprint.title}</p>
+            <div className="my-6 p-5 bg-white rounded-2xl border-2 text-left border-gray-200 flex-grow overflow-y-auto">
+              <h4 className="font-bold text-lg text-gray-800">
+                Learning Summary
+              </h4>
               <hr className="my-3 border-gray-200" />
-              <BlueprintRenderer summary={lessonPlan.blueprint.summary} />
+              <p>{lessonPlan.blueprint.summary}</p>
             </div>
-
             <button
               onClick={() => onLessonComplete()}
-              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-4 flex-shrink-0 transition-transform duration-200 hover:scale-105"
+              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg mt-4 flex-shrink-0"
             >
-              {objective.type === "homework" && objective.label
-                ? `Continue to Question ${objective.label}`
-                : "Continue to Challenges"}
+              Continue to Challenges
             </button>
           </motion.div>
         )}
