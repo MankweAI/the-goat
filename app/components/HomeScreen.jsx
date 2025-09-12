@@ -42,7 +42,11 @@ const getGreeting = () => {
   return { text: "Good evening!", emoji: "🌙" };
 };
 
-export default function HomeScreen({ onStartTopicMastery, onStartHomework }) {
+export default function HomeScreen({
+  onStartTopicMastery,
+  onStartHomework,
+  onStartPastPapers,
+}) {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [greeting, setGreeting] = useState({ text: "Welcome!", emoji: "👋" });
 
@@ -69,9 +73,9 @@ export default function HomeScreen({ onStartTopicMastery, onStartHomework }) {
     {
       id: "papers",
       title: "Past Question Papers",
-      subtitle: "Chat with or download official exam papers",
+      subtitle: "Interactive practice with official exams", // Updated subtitle
       icon: "📄",
-      action: () => setShowComingSoon(true),
+      action: () => onStartPastPapers(), // UPDATED ACTION
     },
   ];
 

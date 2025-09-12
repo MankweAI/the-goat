@@ -21,6 +21,8 @@ import ChallengeScreen from "./components/ChallengeScreen";
 import ProgressReportScreen from "./components/ProgressReportScreen";
 import MasteryQuizScreen from "./components/MasteryQuizScreen";
 import SolutionScreen from "./components/SolutionScreen"; // Import SolutionScreen
+import PastPapersScreen from "./components/PastPapersScreen"; // NEW IMPORT
+import QReaderScreen from "./components/QReaderScreen"; 
 
 // FILE: app/page.js -> AppContent function
 // -------------------------------------------------
@@ -43,6 +45,8 @@ function AppContent() {
   const [challengeResults, setChallengeResults] = useState([]);
   const [currentSolution, setCurrentSolution] = useState(null); // New state for the solution object
 
+   const [currentPaper, setCurrentPaper] = useState(null); 
+
   const handleGoHome = () => {
     setScreen("home");
     setError(null);
@@ -54,6 +58,7 @@ function AppContent() {
     setCompletedObjectives(new Set());
     setCurrentLessonPlan(null);
     setCurrentSolution(null);
+    setCurrentPaper(null);
   };
 
   const handlePlanHomework = async (formData) => {
@@ -230,6 +235,11 @@ function AppContent() {
     }
   };
 
+    const handleStartPastPaperSession = (paper) => {
+      setCurrentPaper(paper);
+      setScreen("q_reader");
+    };
+
   const getContinueText = () => {
     const isCurrentCurriculumComplete = curriculum.every(
       (obj) => completedObjectives.has(obj.id) || obj.id === currentObjective.id
@@ -271,6 +281,7 @@ function AppContent() {
           <HomeScreen
             onStartTopicMastery={() => setScreen("topic_intake")}
             onStartHomework={() => setScreen("homework_intake")}
+            onStartPastPapers={() => setScreen("past_papers")}
           />
         );
       case "homework_intake":
@@ -292,6 +303,20 @@ function AppContent() {
               setScreen("topic_curriculum");
             }}
             onBack={handleGoHome}
+          />
+        );
+      case "past_papers":
+        return (
+          <PastPapersScreen
+            onStartSession={handleStartPastPaperSession}
+            onBack={handleGoHome}
+          />
+        );
+      case "q_reader":
+        return (
+          <QReaderScreen
+            paper={currentPaper}
+            onBack={() => setScreen("past_papers")}
           />
         );
       case "topic_intake":
@@ -356,6 +381,7 @@ function AppContent() {
           <HomeScreen
             onStartTopicMastery={() => setScreen("topic_intake")}
             onStartHomework={() => setScreen("homework_intake")}
+            onStartPastPapers={() => setScreen("past_papers")}
           />
         );
     }

@@ -1,0 +1,62 @@
+-- FILE: supabase_setup.sql
+-- -------------------------------------------------
+-- ACTION: Run this script in your Supabase SQL Editor to set up the database.
+-- -------------------------------------------------
+
+-- 1. Enable the pgvector extension for similarity searches
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- 2. Create the 'papers' table to store information about each past paper
+CREATE TABLE papers (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    year INT NOT NULL,
+    grade INT NOT NULL,
+    stats JSONB -- To store pre-calculated stats like topics, question count, etc.
+);
+
+-- 3. Create the 'questions' table to store each individual question
+CREATE TABLE questions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    paper_id TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    question_number TEXT NOT NULL,
+    question_text TEXT NOT NULL,
+    question_image TEXT, -- URL to an image if the question has one
+    solution_text TEXT NOT NULL,
+    solution_image TEXT, -- URL to an image for the solution
+    marks INT NOT NULL,
+    topic TEXT,
+    difficulty TEXT, -- e.g., 'Easy', 'Medium', 'Hard'
+    embedding VECTOR(1536) -- For OpenAI's text-embedding-3-small model
+);
+
+-- 4. Create the RPC function for vector similarity search
+CREATE OR REPLACE FUNCTION match_questions (
+  query_embedding VECTOR(1536),
+  match_threshold FLOAT,
+  match_count INT
+)
+RETURNS TABLE (
+  id UUID,
+  paper_id TEXT,
+  question_number TEXT,
+  question_text TEXT,
+  source_paper TEXT, -- A more user-friendly identifier
+  similarity FLOAT
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    q.id,
+    q.paper_id,
+    q.question_number,
+    q.question_text,
+    p.title AS source_paper,
+    1 - (q.embedding <=> query_embedding) AS similarity
+  FROM questions q
+  JOIN papers p ON q.paper_id = p.id
+  WHERE 1 - (q.embedding <=> query_embedding) > match_threshold
+  ORDER BY similarity DESC
+  LIMIT match_count;
+$$;

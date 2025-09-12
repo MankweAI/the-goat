@@ -1,0 +1,42 @@
+
+[
+  {
+    "id": "math_p1_nsc_2023_nov",
+    "title": "Mathematics Paper 1 - NSC November 2023",
+    "subject": "Mathematics",
+    "year": 2023,
+    "grade": 12,
+    "stats": {
+      "question_count": 11,
+      "topics": [
+        "Algebra",
+        "Patterns",
+        "Functions",
+        "Finance",
+        "Calculus",
+        "Probability"
+      ],
+      "most_asked_topic": "Calculus"
+    }
+  },
+  {
+    "id": "math_p1_nsc_2022_nov",
+    "title": "Mathematics Paper 1 - NSC November 2022",
+    "subject": "Mathematics",
+    "year": 2022,
+    "grade": 12,
+    "stats": {
+      "question_count": 12,
+      "topics": [
+        "Algebra",
+        "Patterns",
+        "Functions",
+        "Finance",
+        "Calculus",
+        "Probability"
+      ],
+      "most_asked_topic": "Functions"
+    }
+  }
+]
+
