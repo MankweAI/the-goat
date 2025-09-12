@@ -5,12 +5,12 @@
     "paper_id": "math_p1_nsc_2023_nov",
     "question_number": "1.1.1",
     "question_text": "Solve for x: (x - 6)(x + 2) = 0",
-    "question_image": null,
     "solution_steps": [
       "Set each factor equal to zero: x - 6 = 0 or x + 2 = 0",
       "Solve for x in each equation: x = 6 or x = -2"
     ],
-    "solution_image": null,
+    "final_answer_concise": "x = 6 or x = -2",
+    "recommended_time_seconds": 180,
     "marks": 2,
     "topic": "Algebra",
     "difficulty": "Easy"
@@ -20,7 +20,6 @@
     "paper_id": "math_p1_nsc_2023_nov",
     "question_number": "1.1.2",
     "question_text": "Solve for x, correct to TWO decimal places: 2x^2 + 3x - 7 = 0",
-    "question_image": null,
     "solution_steps": [
       "This does not factorise easily, so we must use the quadratic formula: x = [-b ± sqrt(b^2 - 4ac)] / 2a",
       "Substitute a=2, b=3, c=-7 into the formula: x = [-3 ± sqrt(3^2 - 4(2)(-7))] / 2(2)",
@@ -28,27 +27,10 @@
       "Continue simplifying: x = [-3 ± sqrt(65)] / 4",
       "Calculate the two possible values for x: x ≈ 1.27 or x ≈ -2.77"
     ],
-    "solution_image": null,
+    "final_answer_concise": "x = 1.27 or x = -2.77",
+    "recommended_time_seconds": 300,
     "marks": 4,
     "topic": "Algebra",
-    "difficulty": "Medium"
-  },
-  {
-    "id": "c3d4e5f6-a7b8-9012-3456-7890abcdef12",
-    "paper_id": "math_p1_nsc_2023_nov",
-    "question_number": "5.1",
-    "question_text": "The Northern Cape province launched a tourism campaign. In the first year, the number of tourists was 12 000. In the second year, the number of tourists was 13 200. The numbers of tourists form a geometric sequence. Calculate the number of tourists in the fifth year.",
-    "question_image": null,
-    "solution_steps": [
-      "First, find the common ratio (r): r = T2 / T1 = 13200 / 12000 = 1.1",
-      "Identify the first term (a): a = 12000",
-      "Use the formula for the nth term of a geometric sequence: Tn = ar^(n-1)",
-      "Substitute the values to find the 5th term (T5): T5 = 12000 * (1.1)^(5-1)",
-      "Calculate the final answer: T5 = 17569.2, which means approximately 17569 tourists."
-    ],
-    "solution_image": null,
-    "marks": 3,
-    "topic": "Patterns",
     "difficulty": "Medium"
   }
 ]

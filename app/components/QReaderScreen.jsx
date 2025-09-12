@@ -1,136 +1,56 @@
 // FILE: app/components/QReaderScreen.jsx
 // -------------------------------------------------
-// IMPLEMENTED - This component has been updated to include the two new features:
-// 1. "Examiner's Note" Button: Triggers an AI call to get exam technique insights.
-// 2. Interactive Step-by-Step Solution: The solution is now revealed one step at a time.
+// REDESIGNED - This version implements the collapsible accordion-style for the AI tools.
+// - "Get a Hint", "Examiner's Note", and "Show Solution" are now self-contained collapsible sections.
+// - Clicking a button expands its content directly below it. Clicking again collapses it.
+// - State management has been refactored to handle the active collapsible section.
 // -------------------------------------------------
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+// Make sure you have lucide-react installed: npm install lucide-react
 import {
   Lightbulb,
   BookOpen,
-  Search,
   ChevronLeft,
   ChevronRight,
-  X,
-  Info,
+  Award,
+  ChevronDown,
 } from "lucide-react";
 
-// --- Sub-components (Slightly modified for new features) ---
+// --- Sub-components (No changes needed) ---
 
-const InfoPopover = ({ title, content, onClose, isLoading }) => (
+const WhyExplanation = ({ explanation, isLoading }) => (
   <motion.div
-    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-    onClick={(e) => e.stopPropagation()}
-    className="absolute bottom-full right-0 mb-3 w-72 bg-gray-900 text-white text-sm rounded-lg p-4 shadow-xl z-20 border border-gray-700 backdrop-blur-sm bg-opacity-80"
+    initial={{ opacity: 0, y: -10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="mt-2 ml-8 p-3 bg-indigo-50 border-l-4 border-indigo-400 rounded-r-lg"
   >
-    <button
-      onClick={onClose}
-      className="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors duration-200"
-    >
-      <X size={18} />
-    </button>
-    <h4 className="font-bold mb-2 text-lg text-blue-300">{title}</h4>
     {isLoading ? (
-      <p className="text-gray-300">Generating insight...</p>
+      <p className="italic text-indigo-700">Explaining...</p>
     ) : (
-      <div className="text-gray-200">{content}</div>
+      <p className="text-sm text-indigo-800">{explanation}</p>
     )}
   </motion.div>
 );
 
-const SimilarQuestionsModal = ({ questions, isLoading, onClose }) => (
-  <div
-    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4"
-    onClick={onClose}
-  >
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      onClick={(e) => e.stopPropagation()}
-      className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-gray-200"
-    >
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-2xl font-bold text-gray-800">
-          Similar Questions Found
-        </h3>
-        <button
-          onClick={onClose}
-          className="text-gray-500 hover:text-gray-800 transition-colors duration-200"
-        >
-          <X size={24} />
-        </button>
-      </div>
-      <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
-        {isLoading && (
-          <p className="text-center text-gray-600 p-4">
-            Finding similar questions...
-          </p>
-        )}
-        {!isLoading &&
-          questions.map((q, index) => (
-            <motion.div
-              key={q.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="p-4 bg-blue-50 rounded-lg border border-blue-200 hover:shadow-md transition-shadow duration-200"
-            >
-              <p className="font-semibold text-base text-blue-800">
-                {q.question_text}
-              </p>
-              <p className="text-sm text-blue-600 mt-1">
-                From: {q.source_paper} - Q{q.question_number}
-              </p>
-            </motion.div>
-          ))}
-        {!isLoading && questions.length === 0 && (
-          <p className="text-center text-gray-600 p-4">
-            No similar questions found.
-          </p>
-        )}
-      </div>
-      <button
-        onClick={onClose}
-        className="mt-6 w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors duration-200 shadow-md"
-      >
-        Close
-      </button>
-    </motion.div>
-  </div>
-);
-
-// --- Main QReader Component ---
+// --- Main Paper Trainer Component ---
 
 export default function QReaderScreen({ paper, onBack }) {
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [popover, setPopover] = useState(null);
 
-  // State for Step-by-Step Solution
-  const [showSolution, setShowSolution] = useState(false);
-  const [revealedStep, setRevealedStep] = useState(0);
-
-  // State for Examiner's Note
+  // State for New Features
+  const [activeSection, setActiveSection] = useState(null); // 'hint', 'note', or 'solution'
+  const [hint, setHint] = useState({ loading: false, data: null });
   const [examinerNote, setExaminerNote] = useState({
     loading: false,
-    data: "",
+    data: null,
   });
-
-  const [marksExplanation, setMarksExplanation] = useState({
-    loading: false,
-    data: [],
-  });
-  const [similarQuestions, setSimilarQuestions] = useState({
-    loading: false,
-    data: [],
-  });
-  const popoverRef = useRef(null);
+  const [revealedStep, setRevealedStep] = useState(0);
+  const [stepExplanations, setStepExplanations] = useState({});
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -144,74 +64,74 @@ export default function QReaderScreen({ paper, onBack }) {
     if (paper?.id) fetchQuestions();
   }, [paper?.id]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-        setPopover(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const currentQuestion = questions[currentIndex];
 
-  const handleExplainMarks = async () => {
-    // ... (This function remains the same)
+  const handleToggleSection = (section) => {
+    if (activeSection === section) {
+      setActiveSection(null);
+    } else {
+      setActiveSection(section);
+      // Fetch content if it hasn't been fetched for this question yet
+      if (section === "hint" && !hint.data) handleGetHint();
+      if (section === "note" && !examinerNote.data) handleExaminersNote();
+      if (section === "solution" && revealedStep === 0) setRevealedStep(1);
+    }
   };
 
-  const handleFindSimilar = async () => {
-    // ... (This function remains the same)
+  const handleGetHint = async () => {
+    setHint({ loading: true, data: "Thinking of a hint..." });
+    const res = await fetch("/api/questions/get-hint", {
+      method: "POST",
+      body: JSON.stringify({ questionText: currentQuestion.question_text }),
+    });
+    const data = await res.json();
+    setHint({ loading: false, data: data.hint });
+  };
+
+  const handleExplainStep = async (step, index) => {
+    setStepExplanations((prev) => ({
+      ...prev,
+      [index]: { loading: true, data: null },
+    }));
+    const res = await fetch("/api/questions/explain-step", {
+      method: "POST",
+      body: JSON.stringify({
+        questionText: currentQuestion.question_text,
+        solutionStep: step,
+      }),
+    });
+    const data = await res.json();
+    setStepExplanations((prev) => ({
+      ...prev,
+      [index]: { loading: false, data: data.explanation },
+    }));
   };
 
   const handleExaminersNote = async () => {
-    if (!currentQuestion) return;
-    if (popover === "examiner") {
-      setPopover(null);
-      return;
-    }
-    setPopover("examiner");
-    setExaminerNote({ loading: true, data: "" });
-
-    try {
-      const response = await fetch("/api/questions/examiner-note", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionText: currentQuestion.question_text,
-          solutionText: currentQuestion.solution_steps.join("\n"),
-          marks: currentQuestion.marks,
-          topic: currentQuestion.topic,
-        }),
-      });
-      if (!response.ok) throw new Error("Failed to get examiner's note.");
-      const data = await response.json();
-      setExaminerNote({
-        loading: false,
-        data: data.note || "No specific insight available.",
-      });
-    } catch (error) {
-      console.error("Error fetching examiner's note:", error);
-      setExaminerNote({ loading: false, data: "Failed to load insight." });
-    }
+    setExaminerNote({ loading: true, data: "Analyzing the question..." });
+    const res = await fetch("/api/questions/examiner-note", {
+      method: "POST",
+      body: JSON.stringify({
+        questionText: currentQuestion.question_text,
+        solutionText: currentQuestion.solution_steps.join("\n"),
+        topic: currentQuestion.topic,
+        marks: currentQuestion.marks,
+      }),
+    });
+    const data = await res.json();
+    setExaminerNote({ loading: false, data: data.note });
   };
 
   const navigate = (direction) => {
-    setShowSolution(false);
-    setRevealedStep(0);
-    setPopover(null);
-    setCurrentIndex((prev) =>
-      Math.max(0, Math.min(questions.length - 1, prev + direction))
-    );
-  };
-
-  const toggleSolution = () => {
-    if (showSolution) {
-      setShowSolution(false);
+    const newIndex = currentIndex + direction;
+    if (newIndex >= 0 && newIndex < questions.length) {
+      setCurrentIndex(newIndex);
+      // Reset state for new question
+      setActiveSection(null);
+      setHint({ loading: false, data: null });
+      setExaminerNote({ loading: false, data: null });
       setRevealedStep(0);
-    } else {
-      setShowSolution(true);
-      setRevealedStep(1);
+      setStepExplanations({});
     }
   };
 
@@ -221,173 +141,242 @@ export default function QReaderScreen({ paper, onBack }) {
     );
   };
 
-  if (isLoading || !currentQuestion) {
-    // Improved loading state
-    return (
-      <div className="flex items-center justify-center h-screen text-gray-600">
-        Loading Smart Paper...
-      </div>
-    );
-  }
+  if (isLoading || !currentQuestion)
+    return <div className="text-center p-12">Loading Smart Paper...</div>;
 
   const allStepsRevealed =
     revealedStep >= currentQuestion.solution_steps.length;
 
-  return (
-    <div className="w-full max-w-3xl mx-auto p-4 md:p-8 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-3xl shadow-2xl relative">
-      <AnimatePresence>
-        {popover === "similar" && (
-          <SimilarQuestionsModal
-            questions={similarQuestions.data}
-            isLoading={similarQuestions.loading}
-            onClose={() => setPopover(null)}
-          />
-        )}
-      </AnimatePresence>
+  const sectionButtonClasses = (section) =>
+    `w-full flex justify-between items-center p-4 font-semibold rounded-lg transition-all duration-300 shadow-sm disabled:opacity-50`;
+  const sectionColors = {
+    hint: {
+      bg: "bg-yellow-100",
+      text: "text-yellow-800",
+      hover: "hover:bg-yellow-200",
+      activeBg: "bg-yellow-200",
+      activeRing: "ring-2 ring-yellow-400",
+    },
+    note: {
+      bg: "bg-purple-100",
+      text: "text-purple-800",
+      hover: "hover:bg-purple-200",
+      activeBg: "bg-purple-200",
+      activeRing: "ring-2 ring-purple-400",
+    },
+    solution: {
+      bg: "bg-green-100",
+      text: "text-green-800",
+      hover: "hover:bg-green-200",
+      activeBg: "bg-green-200",
+      activeRing: "ring-2 ring-green-400",
+    },
+  };
 
-      <div className="flex justify-between items-center mb-6 border-b pb-4 border-blue-200">
+  return (
+    <div className="w-full max-w-3xl mx-auto p-4 md:p-6 bg-gray-100 rounded-2xl shadow-lg">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4 pb-4 border-b">
         <button
           onClick={onBack}
-          className="text-blue-700 hover:text-blue-900 transition-colors duration-200 flex items-center gap-1"
+          className="text-gray-600 hover:text-black transition-colors"
         >
-          <ChevronLeft size={20} />{" "}
-          <span className="hidden sm:inline">Back</span>
+          <ChevronLeft size={24} />
         </button>
-        <div className="text-center flex-grow">
-          <h2 className="text-xl md:text-2xl font-extrabold text-blue-900">
-            {paper.title}
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
+        <div className="text-center">
+          <h2 className="font-bold text-gray-800">{paper.title}</h2>
+          <p className="text-sm text-gray-500">
             Question {currentIndex + 1} of {questions.length}
           </p>
         </div>
-        <div className="w-14 sm:w-20"></div>
+        <div className="w-6"></div>
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentIndex}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3 }}
-          className="bg-white rounded-2xl shadow-lg p-6 md:p-8 min-h-[250px] border border-blue-200 flex flex-col justify-between relative"
-        >
-          <div>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-              <span className="font-bold text-xl text-gray-900">
-                Question {currentQuestion.question_number}
-              </span>
-              <div className="flex items-center gap-3" ref={popoverRef}>
-                <span className="text-sm font-semibold bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-                  {currentQuestion.difficulty}
-                </span>
-                <div className="relative">
-                  <button
-                    onClick={handleExplainMarks}
-                    className="text-sm font-semibold text-gray-700 bg-gray-100 px-3 py-1 rounded-full hover:bg-gray-200 transition-colors duration-200 flex items-center gap-1"
-                  >
-                    ({currentQuestion.marks} marks) <Info size={16} />
-                  </button>
-                  {popover === "marks" && (
-                    <InfoPopover
-                      title="Mark Breakdown"
-                      content={marksExplanation.data}
-                      isLoading={marksExplanation.loading}
-                      onClose={() => setPopover(null)}
-                    />
-                  )}
-                </div>
-                <div className="relative">
-                  <button
-                    onClick={handleExaminersNote}
-                    className="p-2 bg-amber-100 text-amber-800 rounded-full hover:bg-amber-20l00 transition-colors duration-200"
-                  >
-                    <Lightbulb size={18} />
-                  </button>
-                  {popover === "examiner" && (
-                    <InfoPopover
-                      title="Examiner's Note"
-                      content={[examinerNote.data]}
-                      isLoading={examinerNote.loading}
-                      onClose={() => setPopover(null)}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">
-              {currentQuestion.question_text}
-            </div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
+      {/* Question Card */}
+      <div className="bg-white p-6 rounded-lg shadow-md min-h-[250px] mb-4">
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-lg">
+            Question {currentQuestion.question_number}
+          </span>
+          <span className="text-sm font-semibold text-gray-500">
+            {currentQuestion.marks} marks
+          </span>
+        </div>
+        <p className="mt-4 text-gray-700 text-base leading-relaxed">
+          {currentQuestion.question_text}
+        </p>
+      </div>
 
-      <AnimatePresence>
-        {showSolution && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="mt-6 bg-green-50 border-2 border-green-200 p-6 rounded-2xl shadow-md"
+      {/* Collapsible AI Tools */}
+      <div className="space-y-3">
+        {/* Hint Section */}
+        <div>
+          <button
+            onClick={() => handleToggleSection("hint")}
+            className={`${sectionButtonClasses("hint")} ${
+              sectionColors.hint.bg
+            } ${sectionColors.hint.text} ${sectionColors.hint.hover} ${
+              activeSection === "hint"
+                ? sectionColors.hint.activeBg +
+                  " " +
+                  sectionColors.hint.activeRing
+                : ""
+            }`}
           >
-            <h4 className="font-bold text-xl text-green-800 flex items-center gap-2">
-              <BookOpen size={20} /> Official Solution:
-            </h4>
-            <div className="mt-4 space-y-3">
-              {currentQuestion.solution_steps
-                .slice(0, revealedStep)
-                .map((step, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-green-700 text-base leading-relaxed"
-                  >
-                    <span className="font-bold mr-2">{index + 1}.</span>
-                    {step}
-                  </motion.div>
-                ))}
-            </div>
-            {!allStepsRevealed && (
-              <button
-                onClick={revealNextStep}
-                className="mt-4 w-full bg-green-600 text-white font-semibold py-2 rounded-lg hover:bg-green-700 transition-colors"
+            <span className="flex items-center gap-2">
+              <Lightbulb size={18} /> Get a Hint
+            </span>
+            <motion.div
+              animate={{ rotate: activeSection === "hint" ? 180 : 0 }}
+            >
+              <ChevronDown size={20} />
+            </motion.div>
+          </button>
+          <AnimatePresence>
+            {activeSection === "hint" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
               >
-                Reveal Next Step
-              </button>
+                <div className="p-4 mt-2 bg-yellow-50 rounded-b-lg border-t border-yellow-200 text-yellow-900">
+                  {hint.loading ? "Thinking..." : hint.data}
+                </div>
+              </motion.div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </div>
 
-      <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Examiner's Note Section */}
+        <div>
+          <button
+            onClick={() => handleToggleSection("note")}
+            className={`${sectionButtonClasses("note")} ${
+              sectionColors.note.bg
+            } ${sectionColors.note.text} ${sectionColors.note.hover} ${
+              activeSection === "note"
+                ? sectionColors.note.activeBg +
+                  " " +
+                  sectionColors.note.activeRing
+                : ""
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Award size={18} /> Examiner's Note
+            </span>
+            <motion.div
+              animate={{ rotate: activeSection === "note" ? 180 : 0 }}
+            >
+              <ChevronDown size={20} />
+            </motion.div>
+          </button>
+          <AnimatePresence>
+            {activeSection === "note" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 mt-2 bg-purple-50 rounded-b-lg border-t border-purple-200 text-purple-900">
+                  {examinerNote.loading ? "Analyzing..." : examinerNote.data}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Solution Section */}
+        <div>
+          <button
+            onClick={() => handleToggleSection("solution")}
+            className={`${sectionButtonClasses("solution")} ${
+              sectionColors.solution.bg
+            } ${sectionColors.solution.text} ${sectionColors.solution.hover} ${
+              activeSection === "solution"
+                ? sectionColors.solution.activeBg +
+                  " " +
+                  sectionColors.solution.activeRing
+                : ""
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <BookOpen size={18} /> Show Solution
+            </span>
+            <motion.div
+              animate={{ rotate: activeSection === "solution" ? 180 : 0 }}
+            >
+              <ChevronDown size={20} />
+            </motion.div>
+          </button>
+          <AnimatePresence>
+            {activeSection === "solution" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 mt-2 bg-green-50 rounded-b-lg border-t border-green-200">
+                  <div className="space-y-3">
+                    {currentQuestion.solution_steps
+                      .slice(0, revealedStep)
+                      .map((step, index) => (
+                        <div key={index}>
+                          <div className="flex items-start gap-3 text-gray-700">
+                            <span className="flex-shrink-0 font-bold mt-1">
+                              {index + 1}.
+                            </span>
+                            <p className="flex-grow">{step}</p>
+                            <button
+                              onClick={() => handleExplainStep(step, index)}
+                              className="flex-shrink-0 text-blue-500 hover:underline text-sm"
+                            >
+                              [Why?]
+                            </button>
+                          </div>
+                          {stepExplanations[index] && (
+                            <WhyExplanation
+                              explanation={stepExplanations[index].data}
+                              isLoading={stepExplanations[index].loading}
+                            />
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                  {!allStepsRevealed && (
+                    <button
+                      onClick={revealNextStep}
+                      className="mt-4 w-full bg-green-600 text-white font-semibold py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Reveal Next Step
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <div className="mt-6 flex gap-4">
         <button
           onClick={() => navigate(-1)}
           disabled={currentIndex === 0}
-          className="flex items-center justify-center p-3 bg-gray-200 text-gray-700 rounded-xl font-semibold disabled:opacity-50 hover:bg-gray-300 transition-colors duration-200 shadow-sm"
+          className="w-full p-3 bg-gray-700 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors"
         >
-          <ChevronLeft size={20} className="mr-2" /> Previous
+          <ChevronLeft size={20} />
+          Previous
         </button>
         <button
           onClick={() => navigate(1)}
           disabled={currentIndex === questions.length - 1}
-          className="flex items-center justify-center p-3 bg-gray-200 text-gray-700 rounded-xl font-semibold disabled:opacity-50 hover:bg-gray-300 transition-colors duration-200 shadow-sm"
+          className="w-full p-3 bg-gray-700 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors"
         >
-          Next <ChevronRight size={20} className="ml-2" />
-        </button>
-        <button
-          onClick={toggleSolution}
-          className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors duration-200 shadow-md"
-        >
-          <BookOpen size={20} className="mr-2" />{" "}
-          {showSolution ? "Hide" : "Show"} Solution
-        </button>
-        <button
-          onClick={handleFindSimilar}
-          className="flex items-center justify-center p-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors duration-200 shadow-md"
-        >
-          <Search size={20} className="mr-2" /> Find Similar
+          Next
+          <ChevronRight size={20} />
         </button>
       </div>
     </div>

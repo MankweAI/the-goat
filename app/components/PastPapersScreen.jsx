@@ -1,17 +1,94 @@
 // FILE: app/components/PastPapersScreen.jsx
 // -------------------------------------------------
-// IMPLEMENTED - This component now fetches and renders mock data.
-// It features functional filters and a list of papers that can be selected to start a session.
+// REDESIGNED - The UI of this component has been completely overhauled to match the premium
+// aesthetic of the QReaderScreen.
+// - Upgraded container with a gradient background and larger shadow.
+// - Modernized filter controls with icons and better styling.
+// - Paper selection items are now visually rich "cards" with hover effects.
+// - Improved loading and error states for a more polished feel.
 // -------------------------------------------------
 "use client";
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+// Make sure you have lucide-react installed: npm install lucide-react
+import {
+  Book,
+  Calendar,
+  GraduationCap,
+  ChevronLeft,
+  ArrowRight,
+  BookCopy,
+} from "lucide-react";
 
 const MOCK_FILTERS = {
   grades: ["Grade 12", "Grade 11", "Grade 10"],
   subjects: ["Mathematics", "Physical Sciences", "Life Sciences", "Accounting"],
   years: ["2023", "2022", "2021", "2020"],
 };
+
+const FilterSelect = ({ id, label, value, onChange, options, icon: Icon }) => (
+  <div>
+    <label
+      htmlFor={id}
+      className="flex items-center text-sm font-bold text-gray-700 mb-2"
+    >
+      <Icon size={16} className="mr-2 text-gray-500" />
+      {label}
+    </label>
+    <select
+      id={id}
+      name={id}
+      value={value}
+      onChange={onChange}
+      className="w-full p-3 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 shadow-sm"
+    >
+      {options.map((o) => (
+        <option key={o}>{o}</option>
+      ))}
+    </select>
+  </div>
+);
+
+const PaperCard = ({ paper, onStartSession, index }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{
+      delay: index * 0.08,
+      type: "spring",
+      stiffness: 300,
+      damping: 25,
+    }}
+  >
+    <button
+      onClick={() => onStartSession(paper)}
+      className="w-full p-5 rounded-2xl text-left transition-all duration-300 border-2 bg-white border-gray-200 hover:border-blue-500 hover:bg-blue-50 hover:shadow-xl group"
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="font-bold text-lg text-gray-800 group-hover:text-blue-800 transition-colors duration-300">
+            {paper.title}
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {paper.stats?.question_count} Questions | {paper.subject}
+          </p>
+        </div>
+        <div className="p-3 bg-blue-100 rounded-full group-hover:bg-blue-600 transition-colors duration-300">
+          <ArrowRight
+            size={20}
+            className="text-blue-600 group-hover:text-white transition-colors duration-300"
+          />
+        </div>
+      </div>
+      <div className="mt-4 pt-4 border-t border-gray-200">
+        <p className="text-xs font-semibold text-gray-700">Key Topics:</p>
+        <p className="text-sm text-gray-600 mt-1 line-clamp-1">
+          {paper.stats?.topics?.join(", ")}
+        </p>
+      </div>
+    </button>
+  </motion.div>
+);
 
 export default function PastPapersScreen({ onStartSession, onBack }) {
   const [papers, setPapers] = useState([]);
@@ -33,12 +110,9 @@ export default function PastPapersScreen({ onStartSession, onBack }) {
       setIsLoading(true);
       setError(null);
       try {
-        // In a real app, you would add filter params to the fetch call
-        // For now, we fetch the entire mock file
         const response = await fetch(`/mock-data/mock-papers.json`);
         if (!response.ok) throw new Error("Could not find mock paper data.");
         const data = await response.json();
-        // Here you would filter the data based on state, for now we just set it
         setPapers(data);
       } catch (err) {
         setError(
@@ -46,124 +120,138 @@ export default function PastPapersScreen({ onStartSession, onBack }) {
         );
         console.error(err);
       } finally {
-        setIsLoading(false);
+        setTimeout(() => setIsLoading(false), 500); // Simulate loading for better UX
       }
     };
     fetchPapers();
   }, [filters]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8">
-      <button
-        onClick={onBack}
-        className="text-sm text-gray-600 hover:text-black mb-4"
+    <div className="w-full max-w-3xl mx-auto bg-gradient-to-br from-blue-50 to-indigo-100 rounded-3xl shadow-2xl p-6 md:p-8">
+      <div className="flex items-center mb-6">
+        <button
+          onClick={onBack}
+          className="text-blue-700 hover:text-blue-900 transition-colors duration-200 flex items-center gap-1"
+        >
+          <ChevronLeft size={20} /> Back to Home
+        </button>
+      </div>
+
+      <div className="text-center mb-8">
+        <motion.h2
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="text-4xl font-extrabold text-blue-900"
+        >
+          Past Paper Trainer
+        </motion.h2>
+        <motion.p
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="text-gray-600 mt-2 max-w-xl mx-auto"
+        >
+          Select a paper to transform it into an interactive study session with
+          AI-powered tools.
+        </motion.p>
+      </div>
+
+      {/* Filter UI */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 p-6 bg-white/60 backdrop-blur-sm rounded-2xl border border-blue-200 shadow-md"
       >
-        &larr; Back to Home
-      </button>
-      <div className="text-center mb-6">
-        <h2 className="text-3xl font-bold text-gray-800">Past Papers</h2>
-        <p className="text-gray-500 mt-1">
-          Select a paper to start a smart session.
-        </p>
-      </div>
+        <FilterSelect
+          id="grade"
+          label="Grade"
+          value={filters.grade}
+          onChange={handleFilterChange}
+          options={MOCK_FILTERS.grades}
+          icon={GraduationCap}
+        />
+        <FilterSelect
+          id="subject"
+          label="Subject"
+          value={filters.subject}
+          onChange={handleFilterChange}
+          options={MOCK_FILTERS.subjects}
+          icon={BookCopy}
+        />
+        <FilterSelect
+          id="year"
+          label="Year"
+          value={filters.year}
+          onChange={handleFilterChange}
+          options={MOCK_FILTERS.years}
+          icon={Calendar}
+        />
+      </motion.div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
-        <div>
-          <label
-            htmlFor="grade"
-            className="block text-xs font-medium text-gray-700"
-          >
-            Grade
-          </label>
-          <select
-            id="grade"
-            name="grade"
-            value={filters.grade}
-            onChange={handleFilterChange}
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          >
-            {MOCK_FILTERS.grades.map((g) => (
-              <option key={g}>{g}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor="subject"
-            className="block text-xs font-medium text-gray-700"
-          >
-            Subject
-          </label>
-          <select
-            id="subject"
-            name="subject"
-            value={filters.subject}
-            onChange={handleFilterChange}
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          >
-            {MOCK_FILTERS.subjects.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor="year"
-            className="block text-xs font-medium text-gray-700"
-          >
-            Year
-          </label>
-          <select
-            id="year"
-            name="year"
-            value={filters.year}
-            onChange={handleFilterChange}
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          >
-            {MOCK_FILTERS.years.map((y) => (
-              <option key={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="space-y-3 h-[40vh] overflow-y-auto pr-2">
-        {isLoading && (
-          <div className="text-center p-8 text-gray-500">Loading papers...</div>
-        )}
-        {error && (
-          <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg">
-            {error}
-          </div>
-        )}
-        {!isLoading && !error && papers.length === 0 && (
-          <div className="text-center p-8 text-gray-500">
-            No papers found for these filters.
-          </div>
-        )}
-
-        {!isLoading &&
-          papers.map((paper, index) => (
+      {/* Papers List */}
+      <div className="space-y-4 min-h-[30vh]">
+        <AnimatePresence>
+          {isLoading ? (
             <motion.div
-              key={paper.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
+              key="loader"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center justify-center pt-16 text-gray-600"
             >
-              <button
-                onClick={() => onStartSession(paper)}
-                className="w-full p-4 rounded-xl text-left transition-all duration-300 border-2 bg-purple-50 border-purple-200 hover:border-purple-400 hover:bg-purple-100 hover:shadow-md"
+              <svg
+                className="animate-spin h-6 w-6 text-blue-500 mr-3"
+                viewBox="0 0 24 24"
               >
-                <h3 className="font-bold text-purple-800 text-base">
-                  {paper.title}
-                </h3>
-                <p className="text-sm text-purple-600 mt-1">
-                  {paper.stats?.question_count} Questions | Topics:{" "}
-                  {paper.stats?.topics?.join(", ")}
-                </p>
-              </button>
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              Finding papers...
             </motion.div>
-          ))}
+          ) : error ? (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center p-8 text-red-600 bg-red-50 rounded-lg"
+            >
+              {error}
+            </motion.div>
+          ) : papers.length === 0 ? (
+            <motion.div
+              key="no-papers"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center p-16 text-gray-500"
+            >
+              <h3 className="font-bold text-lg">No Papers Found</h3>
+              <p>Try adjusting your filters to find a different paper.</p>
+            </motion.div>
+          ) : (
+            papers.map((paper, index) => (
+              <PaperCard
+                key={paper.id}
+                paper={paper}
+                onStartSession={onStartSession}
+                index={index}
+              />
+            ))
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
