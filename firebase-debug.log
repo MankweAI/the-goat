@@ -1,0 +1,141 @@
+[debug] [2025-09-14T17:04:44.449Z] ----------------------------------------------------------------------
+[debug] [2025-09-14T17:04:44.452Z] Command:       C:\nvm4w\nodejs\node.exe C:\Users\Papa Tasi\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2025-09-14T17:04:44.453Z] CLI Version:   14.16.0
+[debug] [2025-09-14T17:04:44.453Z] Platform:      win32
+[debug] [2025-09-14T17:04:44.453Z] Node Version:  v22.17.1
+[debug] [2025-09-14T17:04:44.453Z] Time:          Sun Sep 14 2025 19:04:44 GMT+0200 (South Africa Standard Time)
+[debug] [2025-09-14T17:04:44.453Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-09-14T17:04:44.693Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-14T17:04:44.693Z] > authorizing via signed-in user (mankwemokgabudi@gmail.com)
+[debug] [2025-09-14T17:04:44.693Z] [iam] checking project exambuddy-cfed5 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-09-14T17:04:44.695Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:04:44.695Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:04:44.696Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions [none]
+[debug] [2025-09-14T17:04:44.696Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions x-goog-quota-user=projects/exambuddy-cfed5
+[debug] [2025-09-14T17:04:44.696Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-09-14T17:04:46.657Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions 200
+[debug] [2025-09-14T17:04:46.658Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-09-14T17:04:46.660Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:04:46.660Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:04:46.662Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 [none]
+[debug] [2025-09-14T17:04:47.349Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 200
+[debug] [2025-09-14T17:04:47.350Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 {"projectId":"exambuddy-cfed5","projectNumber":"94666922939","displayName":"exambuddy","name":"projects/exambuddy-cfed5","resources":{"hostingSite":"exambuddy-cfed5"},"state":"ACTIVE","etag":"1_2ccf25c1-1168-4ca3-ab04-5e3d0436f119"}
+[info] 
+[info] === Deploying to 'exambuddy-cfed5'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2025-09-14T17:04:47.375Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:04:47.375Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:04:47.375Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions [none]
+[debug] [2025-09-14T17:04:47.376Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2025-09-14T17:04:49.549Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions 500
+[debug] [2025-09-14T17:04:49.550Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions {"error":{"code":500,"message":"Internal error encountered.","status":"INTERNAL"}}
+[error] 
+[error] Error: Request to https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions had HTTP Error: 500, Internal error encountered.
+[debug] [2025-09-14T17:04:49.762Z] Error Context: {
+  "body": {
+    "error": {
+      "code": 500,
+      "message": "Internal error encountered.",
+      "status": "INTERNAL"
+    }
+  },
+  "response": {
+    "statusCode": 500
+  }
+}
+[debug] [2025-09-14T17:07:11.168Z] ----------------------------------------------------------------------
+[debug] [2025-09-14T17:07:11.172Z] Command:       C:\nvm4w\nodejs\node.exe C:\Users\Papa Tasi\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2025-09-14T17:07:11.173Z] CLI Version:   14.16.0
+[debug] [2025-09-14T17:07:11.173Z] Platform:      win32
+[debug] [2025-09-14T17:07:11.173Z] Node Version:  v22.17.1
+[debug] [2025-09-14T17:07:11.173Z] Time:          Sun Sep 14 2025 19:07:11 GMT+0200 (South Africa Standard Time)
+[debug] [2025-09-14T17:07:11.173Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-09-14T17:07:11.516Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-14T17:07:11.516Z] > authorizing via signed-in user (mankwemokgabudi@gmail.com)
+[debug] [2025-09-14T17:07:11.516Z] [iam] checking project exambuddy-cfed5 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-09-14T17:07:11.518Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:07:11.518Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:07:11.519Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions [none]
+[debug] [2025-09-14T17:07:11.520Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions x-goog-quota-user=projects/exambuddy-cfed5
+[debug] [2025-09-14T17:07:11.520Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-09-14T17:07:13.298Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions 200
+[debug] [2025-09-14T17:07:13.299Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-09-14T17:07:13.300Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:07:13.300Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:07:13.300Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 [none]
+[debug] [2025-09-14T17:07:13.964Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 200
+[debug] [2025-09-14T17:07:13.964Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 {"projectId":"exambuddy-cfed5","projectNumber":"94666922939","displayName":"exambuddy","name":"projects/exambuddy-cfed5","resources":{"hostingSite":"exambuddy-cfed5"},"state":"ACTIVE","etag":"1_2ccf25c1-1168-4ca3-ab04-5e3d0436f119"}
+[info] 
+[info] === Deploying to 'exambuddy-cfed5'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2025-09-14T17:07:13.992Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:07:13.992Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:07:13.993Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions [none]
+[debug] [2025-09-14T17:07:13.993Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2025-09-14T17:07:15.961Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions 500
+[debug] [2025-09-14T17:07:15.961Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions {"error":{"code":500,"message":"Internal error encountered.","status":"INTERNAL"}}
+[error] 
+[error] Error: Request to https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions had HTTP Error: 500, Internal error encountered.
+[debug] [2025-09-14T17:07:16.197Z] Error Context: {
+  "body": {
+    "error": {
+      "code": 500,
+      "message": "Internal error encountered.",
+      "status": "INTERNAL"
+    }
+  },
+  "response": {
+    "statusCode": 500
+  }
+}
+[debug] [2025-09-14T17:09:37.136Z] ----------------------------------------------------------------------
+[debug] [2025-09-14T17:09:37.141Z] Command:       C:\nvm4w\nodejs\node.exe C:\Users\Papa Tasi\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2025-09-14T17:09:37.142Z] CLI Version:   14.16.0
+[debug] [2025-09-14T17:09:37.142Z] Platform:      win32
+[debug] [2025-09-14T17:09:37.142Z] Node Version:  v22.17.1
+[debug] [2025-09-14T17:09:37.142Z] Time:          Sun Sep 14 2025 19:09:37 GMT+0200 (South Africa Standard Time)
+[debug] [2025-09-14T17:09:37.143Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-09-14T17:09:37.477Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-14T17:09:37.478Z] > authorizing via signed-in user (mankwemokgabudi@gmail.com)
+[debug] [2025-09-14T17:09:37.478Z] [iam] checking project exambuddy-cfed5 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-09-14T17:09:37.480Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:09:37.480Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:09:37.481Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions [none]
+[debug] [2025-09-14T17:09:37.481Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions x-goog-quota-user=projects/exambuddy-cfed5
+[debug] [2025-09-14T17:09:37.481Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-09-14T17:09:39.283Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions 200
+[debug] [2025-09-14T17:09:39.283Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/exambuddy-cfed5:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-09-14T17:09:39.284Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:09:39.285Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:09:39.285Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 [none]
+[debug] [2025-09-14T17:09:40.059Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 200
+[debug] [2025-09-14T17:09:40.059Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/exambuddy-cfed5 {"projectId":"exambuddy-cfed5","projectNumber":"94666922939","displayName":"exambuddy","name":"projects/exambuddy-cfed5","resources":{"hostingSite":"exambuddy-cfed5"},"state":"ACTIVE","etag":"1_2ccf25c1-1168-4ca3-ab04-5e3d0436f119"}
+[info] 
+[info] === Deploying to 'exambuddy-cfed5'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2025-09-14T17:09:40.068Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:09:40.068Z] Checked if tokens are valid: true, expires at: 1757871618007
+[debug] [2025-09-14T17:09:40.068Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions [none]
+[debug] [2025-09-14T17:09:40.068Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2025-09-14T17:09:42.093Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions 500
+[debug] [2025-09-14T17:09:42.093Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions {"error":{"code":500,"message":"Internal error encountered.","status":"INTERNAL"}}
+[error] 
+[error] Error: Request to https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/exambuddy-cfed5/versions had HTTP Error: 500, Internal error encountered.
+[debug] [2025-09-14T17:09:42.307Z] Error Context: {
+  "body": {
+    "error": {
+      "code": 500,
+      "message": "Internal error encountered.",
+      "status": "INTERNAL"
+    }
+  },
+  "response": {
+    "statusCode": 500
+  }
+}
