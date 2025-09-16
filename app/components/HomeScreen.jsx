@@ -1,6 +1,6 @@
 // FILE: app/components/HomeScreen.jsx
 // -------------------------------------------------
-// FIXED - Enhanced TikTok Studio interface with better styling and error handling
+// ENHANCED - Better error handling and improved UX
 // -------------------------------------------------
 "use client";
 import { useState } from "react";
@@ -40,12 +40,18 @@ export default function HomeScreen({ onGenerate, isLoading, error }) {
 
     if (!topic.trim()) {
       setLocalError("Please enter a topic first!");
-      setTimeout(() => setLocalError(null), 3000);
+      setTimeout(() => setLocalError(null), 4000);
       return;
     }
 
-    console.log(`Generating ${contentType} for topic: ${topic}`);
-    onGenerate(topic, contentType);
+    if (topic.trim().length < 3) {
+      setLocalError("Topic must be at least 3 characters long!");
+      setTimeout(() => setLocalError(null), 4000);
+      return;
+    }
+
+    console.log(`🎬 Generating ${contentType} for topic: "${topic}"`);
+    onGenerate(topic.trim(), contentType);
   };
 
   return (
@@ -89,24 +95,30 @@ export default function HomeScreen({ onGenerate, isLoading, error }) {
           type="text"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="e.g., Photosynthesis, Quadratic Equations..."
+          placeholder="e.g., Photosynthesis, Quadratic Equations, World War 2..."
           className="w-full p-4 rounded-xl border-2 border-gray-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none text-sm transition-all duration-300 bg-gray-50 focus:bg-white"
           disabled={isLoading}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && topic.trim()) {
+            if (e.key === "Enter" && topic.trim() && !isLoading) {
               handleGenerateClick("topic_teaser");
             }
           }}
+          maxLength={100}
         />
-        {(localError || error) && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-2 text-xs font-medium text-red-500 bg-red-50 p-2 rounded-lg border border-red-200"
-          >
-            ⚠️ {localError || error}
-          </motion.p>
-        )}
+        <div className="flex justify-between mt-1">
+          <div>
+            {(localError || error) && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-xs font-medium text-red-500"
+              >
+                ⚠️ {localError || error}
+              </motion.p>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">{topic.length}/100</p>
+        </div>
       </div>
 
       {/* Content Type Selection */}
@@ -122,23 +134,33 @@ export default function HomeScreen({ onGenerate, isLoading, error }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 + index * 0.1 }}
               onClick={() => handleGenerateClick(type.id)}
-              disabled={isLoading}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full p-4 rounded-xl text-left transition-all duration-300 border-2 bg-white border-gray-200 hover:border-transparent hover:shadow-lg flex items-center group disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none"
-              style={{
-                background: isLoading
-                  ? "rgba(249, 250, 251, 1)"
-                  : `linear-gradient(135deg, white, white), linear-gradient(135deg, var(--tw-gradient-from), var(--tw-gradient-to))`,
-                backgroundOrigin: "border-box",
-                backgroundClip: "padding-box, border-box",
-              }}
+              disabled={isLoading || !topic.trim()}
+              whileHover={
+                !isLoading && topic.trim() ? { scale: 1.02, y: -2 } : {}
+              }
+              whileTap={!isLoading && topic.trim() ? { scale: 0.98 } : {}}
+              className={`w-full p-4 rounded-xl text-left transition-all duration-300 border-2 flex items-center group ${
+                isLoading || !topic.trim()
+                  ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-200"
+                  : "bg-white border-gray-200 hover:border-transparent hover:shadow-lg"
+              }`}
+              style={
+                !isLoading && topic.trim()
+                  ? {
+                      background: `linear-gradient(135deg, white, white), linear-gradient(135deg, var(--tw-gradient-from), var(--tw-gradient-to))`,
+                      backgroundOrigin: "border-box",
+                      backgroundClip: "padding-box, border-box",
+                    }
+                  : {}
+              }
             >
               <div
                 className={`w-12 h-12 rounded-xl bg-gradient-to-br ${
                   type.gradient
-                } flex items-center justify-center text-xl mr-4 shadow-md group-hover:shadow-lg transition-shadow ${
-                  isLoading ? "opacity-50" : ""
+                } flex items-center justify-center text-xl mr-4 shadow-md transition-shadow ${
+                  isLoading || !topic.trim()
+                    ? "opacity-50"
+                    : "group-hover:shadow-lg"
                 }`}
               >
                 {type.icon}
@@ -176,7 +198,7 @@ export default function HomeScreen({ onGenerate, isLoading, error }) {
       {/* Footer */}
       <div className="text-center">
         <p className="text-xs text-gray-400">
-          ✨ Your script will be generated instantly
+          ✨ Your script will be previewed before creating the video
         </p>
       </div>
     </motion.div>

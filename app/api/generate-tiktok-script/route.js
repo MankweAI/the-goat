@@ -1,6 +1,6 @@
 // FILE: app/api/generate-tiktok-script/route.js
 // -------------------------------------------------
-// FIXED - Enhanced error handling and logging for better debugging
+// ENHANCED - Better error handling and validation
 // -------------------------------------------------
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -67,13 +67,26 @@ export async function POST(request) {
       );
     }
 
-    console.log(`📝 Generating ${contentType} script for topic: "${topic}"`);
+    // Validate topic length
+    if (topic.trim().length > 200) {
+      return NextResponse.json(
+        { error: "Topic must be less than 200 characters." },
+        { status: 400 }
+      );
+    }
 
-    // Validate OpenAI API key
+    console.log(
+      `📝 Generating ${contentType} script for topic: "${topic.trim()}"`
+    );
+
+    // Check OpenAI API key
     if (!process.env.OPENAI_API_KEY) {
       console.error("OpenAI API key is not configured");
       return NextResponse.json(
-        { error: "OpenAI API is not configured properly." },
+        {
+          error:
+            "OpenAI API is not configured. Please check server configuration.",
+        },
         { status: 500 }
       );
     }
@@ -86,11 +99,12 @@ export async function POST(request) {
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Create an engaging TikTok script for the topic: "${topic}"`,
+          content: `Create an engaging TikTok script for the topic: "${topic.trim()}"`,
         },
       ],
       response_format: { type: "json_object" },
       temperature: 0.7,
+      max_tokens: 1000,
     });
 
     const scriptContent = completion.choices[0].message.content;
@@ -102,21 +116,57 @@ export async function POST(request) {
       console.error("Failed to parse OpenAI response as JSON:", jsonError);
       console.error("OpenAI response content:", scriptContent);
       return NextResponse.json(
-        { error: "Failed to generate valid script format." },
+        { error: "Failed to generate valid script format. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    // Validate script structure based on content type
+    if (
+      contentType === "topic_teaser" &&
+      (!script.scenes ||
+        !Array.isArray(script.scenes) ||
+        script.scenes.length === 0)
+    ) {
+      return NextResponse.json(
+        { error: "Generated script is missing required scenes array." },
+        { status: 500 }
+      );
+    }
+
+    if (
+      contentType === "quick_quiz" &&
+      (!script.question || !script.options || !script.correctAnswer)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Generated quiz is missing required fields (question, options, correctAnswer).",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (contentType === "exam_hack" && (!script.hook || !script.hack)) {
+      return NextResponse.json(
+        {
+          error: "Generated exam hack is missing required fields (hook, hack).",
+        },
         { status: 500 }
       );
     }
 
     console.log(
-      `✅ Successfully generated ${contentType} script for "${topic}"`
+      `✅ Successfully generated ${contentType} script for "${topic.trim()}"`
     );
 
     return NextResponse.json({
       script,
       metadata: {
-        topic,
+        topic: topic.trim(),
         contentType,
         generatedAt: new Date().toISOString(),
+        model: "gpt-4o",
       },
     });
   } catch (error) {
@@ -135,6 +185,10 @@ export async function POST(request) {
         { error: "OpenAI API configuration error." },
         { status: 500 }
       );
+    }
+
+    if (error.message && error.message.includes("Invalid content type")) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(
