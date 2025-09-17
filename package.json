@@ -1,5 +1,5 @@
 {
-  "name": "topic-mastery",
+  "name": "tiktok-explainer-studio",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,9 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "framer-motion": "^11.2.10",
-    "three": "^0.160.0"
+    "three": "^0.160.0",
+    "canvas": "^2.11.2",
+    "fluent-ffmpeg": "^2.1.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
