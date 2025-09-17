@@ -1,162 +1,27 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import SimTapRipple from "./SimTapRipple";
+import { splitIntoLines, clampChars } from "../../lib/fitText";
+import { buildTimeline, suggestCaptionAndTags } from "../../lib/timeline";
 
 export default function TopicMasteryRunner({ topic, script, onDone }) {
-  const {
-    mini_lessons = [],
-    mcq_progression = [],
-    summary = {},
-  } = script || {};
-
-  // State
-  const [phase, setPhase] = useState("intro"); // intro | lessons | quiz | summary | complete
+  // Phases: hook -> lessons -> quiz -> summary -> complete
+  const [phase, setPhase] = useState("hook");
   const [lessonIndex, setLessonIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selected, setSelected] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [score, setScore] = useState(0);
   const [seconds, setSeconds] = useState(0);
-  const [simNote, setSimNote] = useState("");
-  const simRef = useRef({ timers: [] });
 
-  // Total length target (2 minutes)
+  // Simulation helpers
+  const simTimers = useRef([]);
+  const [ripple, setRipple] = useState({ x: 0, y: 0, show: false });
+  const stageRef = useRef(null);
+
   const totalTarget = 120;
-
-  // Helper to register timers for cleanup
-  const later = (fn, ms) => {
-    const id = setTimeout(fn, ms);
-    simRef.current.timers.push(id);
-    return id;
-  };
-  const every = (fn, ms) => {
-    const id = setInterval(fn, ms);
-    simRef.current.timers.push(id);
-    return id;
-  };
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      simRef.current.timers.forEach((id) => {
-        clearTimeout(id);
-        clearInterval(id);
-      });
-    };
-  }, []);
-
-  // Global timer
-  useEffect(() => {
-    every(() => setSeconds((s) => s + 1), 1000);
-  }, []);
-
   const overallProgress = Math.min((seconds / totalTarget) * 100, 100);
-
-  // Simulation flow
-  useEffect(() => {
-    if (phase === "intro") {
-      setSimNote("Simulating tap: Start");
-      later(() => {
-        setPhase("lessons");
-        setSimNote("");
-      }, 2000);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
-
-  // Lessons simulation
-  useEffect(() => {
-    if (phase !== "lessons") return;
-    const lesson = mini_lessons[lessonIndex];
-    if (!lesson) {
-      // Move to quiz
-      setPhase("quiz");
-      setSimNote("");
-      return;
-    }
-    // Show lesson for its duration or at least ~18s
-    const displayMs = Math.max((lesson.duration || 20) * 1000, 18000);
-    // Simulate Next tap 1s before advancing
-    const tapAt = Math.max(displayMs - 1000, 2000);
-    later(() => setSimNote("Simulating tap: Next"), tapAt);
-    later(() => {
-      setSimNote("");
-      setLessonIndex((i) => i + 1);
-    }, displayMs);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, lessonIndex]);
-
-  // Quiz simulation
-  useEffect(() => {
-    if (phase !== "quiz") return;
-    const q = mcq_progression[questionIndex];
-    if (!q) {
-      // Proceed to summary
-      setPhase("summary");
-      setSimNote("");
-      return;
-    }
-
-    // Decide simulated pick:
-    // easy: correct, medium: 50/50, difficult: 50/50
-    const options = q.options || [];
-    let pick = options[0];
-    const isEasy = q.difficulty === "easy";
-    const chooseCorrect =
-      isEasy || Math.random() > 0.5 ? q.correct_answer : null;
-    if (chooseCorrect) {
-      pick = q.correct_answer;
-    } else {
-      // pick a random incorrect
-      const incorrect = options.filter((o) => o !== q.correct_answer);
-      pick =
-        incorrect[Math.floor(Math.random() * incorrect.length)] || options[0];
-    }
-
-    // Simulate a short reading delay then tap
-    later(() => {
-      setSimNote("Simulating tap: Select answer");
-      setSelected(pick);
-      const correct = pick === q.correct_answer;
-      setShowFeedback(true);
-      if (correct) setScore((s) => s + 1);
-    }, 2500);
-
-    // After feedback, simulate Next
-    later(() => {
-      setSimNote("Simulating tap: Next");
-    }, 4500);
-
-    // Advance to next question
-    later(() => {
-      setSimNote("");
-      setShowFeedback(false);
-      setSelected(null);
-      setQuestionIndex((i) => i + 1);
-    }, 5500);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, questionIndex]);
-
-  // Summary simulation
-  useEffect(() => {
-    if (phase !== "summary") return;
-    // Stay ~15s then complete
-    later(() => setSimNote("Simulating tap: Finish"), 12000);
-    later(() => {
-      setSimNote("");
-      setPhase("complete");
-    }, 14000);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
-
-  // Auto-finish callback
-  useEffect(() => {
-    if (phase === "complete") {
-      later(() => onDone?.(), 2000);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
-
   const timeFmt = useMemo(() => {
     const remain = Math.max(totalTarget - seconds, 0);
     const m = Math.floor(remain / 60);
@@ -164,295 +29,402 @@ export default function TopicMasteryRunner({ topic, script, onDone }) {
     return `${m}:${String(s).padStart(2, "0")}`;
   }, [seconds]);
 
-  const renderIntro = () => (
-    <div className="p-6 text-center">
-      <h2 className="text-xl font-bold text-gray-900 mb-2">Topic Mastery</h2>
-      <p className="text-gray-600 mb-4">{topic}</p>
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700">
-        You’ll see mini-lessons, answer questions, and review a summary. All
-        interactions are simulated automatically to preview the experience.
+  // Global timer
+  useEffect(() => {
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    simTimers.current.push(id);
+    return () => {
+      simTimers.current.forEach(clearInterval);
+      simTimers.current.forEach(clearTimeout);
+    };
+  }, []);
+
+  // Utility: schedule timeout with auto-cleanup
+  const later = (fn, ms) => {
+    const id = setTimeout(fn, ms);
+    simTimers.current.push(id);
+    return id;
+  };
+
+  // Subtle simulated tap ripple at element selector
+  const rippleAtSelector = (selector) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const el = stage.querySelector(selector);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const x = rect.left + rect.width / 2 - stageRect.left;
+    const y = rect.top + rect.height / 2 - stageRect.top;
+    setRipple({ x, y, show: true });
+    later(() => setRipple((r) => ({ ...r, show: false })), 700);
+  };
+
+  // Hook simulation
+  useEffect(() => {
+    if (phase !== "hook") return;
+    later(() => rippleAtSelector("[data-sim-next='hook']"), 3600);
+    later(() => setPhase("lessons"), 5000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // Lessons simulation
+  useEffect(() => {
+    if (phase !== "lessons") return;
+    const lesson = script.mini_lessons?.[lessonIndex];
+    if (!lesson) {
+      setPhase("quiz");
+      return;
+    }
+    const durMs = Math.max(20, Math.min(30, lesson.duration || 24)) * 1000;
+    // Next tap just before end
+    later(
+      () => rippleAtSelector("[data-sim-next='lesson']"),
+      Math.max(1200, durMs - 900)
+    );
+    later(() => setLessonIndex((i) => i + 1), durMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, lessonIndex]);
+
+  // Quiz simulation
+  useEffect(() => {
+    if (phase !== "quiz") return;
+    const q = script.mcq_progression?.[questionIndex];
+    if (!q) {
+      setPhase("summary");
+      return;
+    }
+    const options = q.options || [];
+    const chooseCorrect = q.difficulty === "easy" ? true : Math.random() > 0.5;
+    const pick = chooseCorrect
+      ? q.correct_answer
+      : options.find((o) => o !== q.correct_answer) || options[0];
+
+    later(() => {
+      setSelected(pick);
+      setShowFeedback(true);
+      if (pick === q.correct_answer) setScore((s) => s + 1);
+      rippleAtSelector(`[data-option='${options.indexOf(pick)}']`);
+    }, 2300);
+
+    later(() => rippleAtSelector("[data-sim-next='quiz']"), 4300);
+    later(() => {
+      setShowFeedback(false);
+      setSelected(null);
+      setQuestionIndex((i) => i + 1);
+    }, 5200);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, questionIndex]);
+
+  // Summary simulation
+  useEffect(() => {
+    if (phase !== "summary") return;
+    later(() => rippleAtSelector("[data-sim-next='summary']"), 10000);
+    later(() => setPhase("complete"), 12000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // Exit
+  useEffect(() => {
+    if (phase === "complete") {
+      const timeline = buildTimeline(script, topic);
+      const extras = suggestCaptionAndTags(topic);
+      console.log("Timeline JSON:", timeline);
+      console.log("Suggested caption/hashtags:", extras);
+      later(() => onDone?.(), 1200);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // Text helpers
+  const safeCaption = (text) => splitIntoLines(text, 36, 2);
+
+  const toBullets = (text) => {
+    if (!text) return [];
+    // Split by sentence enders, fallback to semicolons/dashes
+    let parts = text
+      .split(/(?<=[.?!])\s+|;|\s+-\s+/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length === 0) parts = [text.trim()];
+    // Keep at most 3 concise bullets
+    parts = parts
+      .slice(0, 3)
+      .map((p) => (p.length > 80 ? p.slice(0, 77) + "…" : p));
+    // Fit each bullet into 1–2 short lines
+    return parts.map((p) => splitIntoLines(p, 34, 2));
+  };
+
+  // Minimal header: thin progress + time
+  const headerBar = (
+    <div className="absolute top-0 left-0 right-0 p-2.5 flex items-center justify-between text-[11px] text-gray-700">
+      <div className="w-20 bg-gray-200 h-1.5 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gray-900"
+          style={{ width: `${overallProgress}%` }}
+        />
       </div>
-      <div className="mt-6 text-sm text-gray-500">{simNote}</div>
+      <span>{timeFmt}</span>
     </div>
   );
 
-  const renderLesson = () => {
-    const lesson = mini_lessons[lessonIndex];
-    if (!lesson) return null;
-    const progress = ((lessonIndex + 1) / mini_lessons.length) * 100;
-
+  const HookScene = () => {
+    const lines = safeCaption(script.hook);
     return (
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-medium text-gray-500">
-            Lesson {lessonIndex + 1} of {mini_lessons.length}
-          </span>
-          <span className="text-xs text-gray-500">Time left: {timeFmt}</span>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="px-6 w-full text-center">
+          <div className="text-gray-900 text-2xl font-bold leading-tight tracking-tight">
+            {lines.map((l, i) => (
+              <div key={i}>{l}</div>
+            ))}
+          </div>
+          <div className="sr-only" data-sim-next="hook" />
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-          <div
-            className="bg-gray-700 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={lessonIndex}
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-          >
-            <h3 className="text-lg font-bold text-gray-900 mb-3">
-              {lesson.title}
-            </h3>
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-3 text-gray-800">
-              {lesson.content}
-            </div>
-            <div className="bg-gray-100 p-3 rounded-lg border border-gray-200 text-sm text-gray-700">
-              Key point: {lesson.key_point}
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="mt-6 flex items-center justify-center">
-          <button
-            className="px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-sm opacity-70 cursor-default"
-            aria-disabled
-          >
-            Next
-          </button>
-        </div>
-        <p className="text-xs text-center text-gray-500 mt-2">{simNote}</p>
       </div>
     );
   };
 
-  const renderQuiz = () => {
-    const q = mcq_progression[questionIndex];
-    if (!q) return null;
-    const progress = ((questionIndex + 1) / mcq_progression.length) * 100;
+  // Minimalistic, slide-like lesson screen
+  const LessonScene = () => {
+    const l = script.mini_lessons?.[lessonIndex];
+    if (!l) return null;
+    const bullets = toBullets(l.content);
+    const keyLine = safeCaption(l.key_point).join(" ");
 
     return (
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-medium text-gray-500">
-            Question {questionIndex + 1} of {mcq_progression.length} •{" "}
-            {q.difficulty}
-          </span>
-          <span className="text-xs text-gray-500">Score: {score}</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-          <div
-            className="bg-gray-700 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="w-[86%] max-w-[420px] mx-auto">
+            <div className="text-gray-900 text-[22px] font-semibold leading-snug mb-4">
+              {l.title}
+            </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={questionIndex}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-          >
-            <h3 className="text-base font-bold text-gray-900 mb-4">
-              {q.question}
-            </h3>
-
-            <div className="space-y-2 mb-4">
-              {(q.options || []).map((option, i) => {
-                const isCorrect = option === q.correct_answer;
-                const isSelected = selected === option;
-                const stateClass = showFeedback
-                  ? isCorrect
-                    ? "bg-green-50 border-green-300 text-green-800"
-                    : isSelected
-                    ? "bg-red-50 border-red-300 text-red-800"
-                    : "bg-gray-50 border-gray-200 text-gray-600"
-                  : "bg-white border-gray-200 text-gray-800";
-                return (
-                  <div
-                    key={i}
-                    className={`p-3 rounded-xl border ${stateClass} text-sm`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>
-                        <strong>{String.fromCharCode(65 + i)}.</strong> {option}
-                      </span>
-                      {showFeedback && isCorrect && <span>✓</span>}
-                      {showFeedback && isSelected && !isCorrect && (
-                        <span>✗</span>
-                      )}
+            <ul className="space-y-2 mb-5">
+              {bullets.map((lines, idx) => (
+                <li
+                  key={idx}
+                  className="text-[18px] leading-snug text-gray-900"
+                >
+                  <div className="flex items-start">
+                    <span className="mt-[8px] mr-2 w-2 h-2 rounded-full bg-gray-900 shrink-0" />
+                    <div>
+                      {lines.map((line, i) => (
+                        <div key={i}>{line}</div>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
+                </li>
+              ))}
+            </ul>
+
+            <div className="text-[14px] text-gray-600 italic">
+              Key: {keyLine}
             </div>
 
-            {showFeedback && (
-              <div className="p-3 rounded-xl border bg-blue-50 border-blue-200 text-sm text-blue-900">
-                {q.explanation}
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="mt-6 flex items-center justify-center">
-          <button
-            className="px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-sm opacity-70 cursor-default"
-            aria-disabled
-          >
-            Next
-          </button>
+            <div className="sr-only" data-sim-next="lesson" />
+          </div>
         </div>
-        <p className="text-xs text-center text-gray-500 mt-2">{simNote}</p>
       </div>
     );
   };
 
-  const renderSummary = () => (
-    <div className="p-6">
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-gray-900">Summary</h2>
-        <p className="text-gray-600 mt-1">You studied: {topic}</p>
-      </div>
+  const DifficultyChip = ({ d }) => {
+    const map = {
+      easy: "bg-green-100 text-green-900",
+      medium: "bg-amber-100 text-amber-900",
+      difficult: "bg-red-100 text-red-900",
+    };
+    return (
+      <span
+        className={`text-[10px] px-2 py-0.5 rounded-full ${
+          map[d] || "bg-gray-100 text-gray-900"
+        }`}
+      >
+        {d}
+      </span>
+    );
+  };
 
-      <div className="space-y-4 mb-4">
-        <div>
-          <h4 className="font-semibold text-gray-800 mb-2 text-sm">
-            Key points
-          </h4>
-          <ul className="space-y-1">
-            {(summary.key_points || []).map((p, i) => (
-              <li key={i} className="text-sm text-gray-700 flex items-start">
-                <span className="w-2 h-2 rounded-full bg-gray-700 mt-2 mr-2"></span>
-                {p}
+  const QuizScene = () => {
+    const q = script.mcq_progression?.[questionIndex];
+    if (!q) return null;
+    const expl = clampChars(q.explanation, 160);
+
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="px-6 w-full">
+          <div className="flex items-center justify-between text-[11px] text-gray-500 mb-2">
+            <div>
+              Q{questionIndex + 1} / {script.mcq_progression?.length || 0}
+            </div>
+            <DifficultyChip d={q.difficulty} />
+          </div>
+
+          <div className="text-gray-900 text-[20px] font-semibold leading-snug mb-3">
+            {q.question}
+          </div>
+
+          <div className="space-y-2 mb-3">
+            {(q.options || []).map((option, i) => {
+              const isCorrect = option === q.correct_answer;
+              const isSelected = selected === option;
+              let cls = "bg-white border-gray-300 text-gray-900";
+              if (showFeedback) {
+                if (isCorrect)
+                  cls = "bg-green-50 border-green-300 text-green-900";
+                else if (isSelected)
+                  cls = "bg-red-50 border-red-300 text-red-900";
+                else cls = "bg-gray-50 border-gray-200 text-gray-600";
+              }
+              return (
+                <div
+                  key={i}
+                  data-option={i}
+                  className={`p-3 rounded-xl border text-[15px] ${cls}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <strong>{String.fromCharCode(65 + i)}.</strong> {option}
+                    </span>
+                    {showFeedback && isCorrect && <span>✓</span>}
+                    {showFeedback && isSelected && !isCorrect && <span>✗</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {showFeedback && (
+            <div className="text-[14px] text-gray-800">{expl}</div>
+          )}
+
+          <div className="sr-only" data-sim-next="quiz" />
+        </div>
+      </div>
+    );
+  };
+
+  // Minimalistic summary: bullets only, no stats card
+  const SummaryScene = () => {
+    const s = script.summary || {};
+    const points = (s.key_points || []).map((p) => clampChars(p, 90));
+
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="px-6 w-full">
+          <div className="text-gray-900 text-[20px] font-semibold leading-snug mb-3">
+            Summary
+          </div>
+          <ul className="space-y-2 mb-4">
+            {points.map((p, i) => (
+              <li
+                key={i}
+                className="text-[16px] text-gray-900 leading-snug flex items-start"
+              >
+                <span className="mt-[8px] mr-2 w-2 h-2 rounded-full bg-gray-900 shrink-0" />
+                <div>{p}</div>
               </li>
             ))}
           </ul>
-        </div>
-        {summary.practical_application && (
-          <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-sm text-gray-800">
-            <span className="font-semibold">Practical application: </span>
-            {summary.practical_application}
-          </div>
-        )}
-        {summary.next_steps && (
-          <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-sm text-gray-800">
-            <span className="font-semibold">Next steps: </span>
-            {summary.next_steps}
-          </div>
-        )}
-      </div>
 
-      <div className="grid grid-cols-3 gap-4 text-center bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-        <div>
-          <p className="text-2xl font-bold text-gray-900">{score}</p>
-          <p className="text-xs text-gray-500">Quiz score</p>
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-gray-900">
-            {mini_lessons.length}
-          </p>
-          <p className="text-xs text-gray-500">Lessons</p>
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-gray-900">2:00</p>
-          <p className="text-xs text-gray-500">Duration</p>
+          {s.practical_application && (
+            <div className="text-[14px] text-gray-700 mb-2">
+              <span className="font-semibold">Apply:</span>{" "}
+              {clampChars(s.practical_application, 140)}
+            </div>
+          )}
+          {s.next_steps && (
+            <div className="text-[14px] text-gray-700">
+              <span className="font-semibold">Next:</span>{" "}
+              {clampChars(s.next_steps, 140)}
+            </div>
+          )}
+
+          {/* Minimal note only; no stats grid */}
+          <div className="sr-only" data-sim-next="summary" />
         </div>
       </div>
-
-      <div className="mt-6 flex items-center justify-center">
-        <button
-          className="px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-sm opacity-70 cursor-default"
-          aria-disabled
-        >
-          Finish
-        </button>
-      </div>
-      <p className="text-xs text-center text-gray-500 mt-2">{simNote}</p>
-    </div>
-  );
-
-  const renderComplete = () => (
-    <div className="p-6 text-center">
-      <h2 className="text-xl font-bold text-gray-900 mb-2">Mastery complete</h2>
-      <p className="text-gray-600">Restarting...</p>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-auto overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-sm">Topic Mastery</h3>
-          <div className="flex items-center space-x-3">
-            <div className="w-16 bg-gray-200 h-2 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gray-800"
-                style={{ width: `${overallProgress}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-600">{timeFmt}</span>
-          </div>
-        </div>
-      </div>
+      {/* Stage 9:16 */}
+      <div
+        ref={stageRef}
+        className="relative aspect-[9/16] bg-white text-gray-900 overflow-hidden"
+      >
+        {headerBar}
 
-      {/* Content */}
-      <AnimatePresence mode="wait">
-        {phase === "intro" && (
-          <motion.div
-            key="intro"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-          >
-            {renderIntro()}
-          </motion.div>
-        )}
-        {phase === "lessons" && (
-          <motion.div
-            key="lessons"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-          >
-            {renderLesson()}
-          </motion.div>
-        )}
-        {phase === "quiz" && (
-          <motion.div
-            key="quiz"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-          >
-            {renderQuiz()}
-          </motion.div>
-        )}
-        {phase === "summary" && (
-          <motion.div
-            key="summary"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-          >
-            {renderSummary()}
-          </motion.div>
-        )}
-        {phase === "complete" && (
-          <motion.div
-            key="complete"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -14 }}
-          >
-            {renderComplete()}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Scenes */}
+        <AnimatePresence mode="wait">
+          {phase === "hook" && (
+            <motion.div
+              key="hook"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0"
+            >
+              <HookScene />
+            </motion.div>
+          )}
+          {phase === "lessons" && (
+            <motion.div
+              key="lessons"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0"
+            >
+              <LessonScene />
+            </motion.div>
+          )}
+          {phase === "quiz" && (
+            <motion.div
+              key="quiz"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0"
+            >
+              <QuizScene />
+            </motion.div>
+          )}
+          {phase === "summary" && (
+            <motion.div
+              key="summary"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0"
+            >
+              <SummaryScene />
+            </motion.div>
+          )}
+          {phase === "complete" && (
+            <motion.div
+              key="complete"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <div className="text-center text-sm text-gray-600">
+                Complete. Resetting…
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Subtle simulated tap ripple */}
+        <SimTapRipple x={ripple.x} y={ripple.y} show={ripple.show} />
+      </div>
     </div>
   );
 }

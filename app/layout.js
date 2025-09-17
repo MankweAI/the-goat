@@ -1,11 +1,14 @@
+// FILE: app/layout.js
+// PURPOSE: Update app metadata to reflect TikTok Explainer pivot.
+
 import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Topic Mastery",
-  description: "Interactive 2-minute mastery experience.",
+  title: "TikTok Explainer Studio",
+  description: "Story-based explainers with smooth 2D/3D animation and sound.",
 };
 
 export default function RootLayout({ children }) {

@@ -1,27 +1,35 @@
+// FILE: app/page.js
+// PURPOSE: Main app flow (Home -> Loading -> 9:16 Preview).
+// FIX: Replaces missing TopicMastery* imports and invalid /api/topic-mastery call.
+// NOW: Uses HomeScreen + /api/generate-tiktok-script + TikTokVideoPreview.
+
 "use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import TopicMasteryHome from "./components/TopicMasteryHome";
+import HomeScreen from "./components/HomeScreen";
 import LoadingSpinner from "./components/LoadingSpinner";
-import TopicMasteryRunner from "./components/TopicMasteryRunner";
+import TikTokVideoPreview from "./components/TikTokVideoPreview";
 
 export default function Page() {
-  const [screen, setScreen] = useState("home"); // home | loading | runner
+  const [screen, setScreen] = useState("home"); // "home" | "loading" | "preview"
   const [error, setError] = useState(null);
   const [topic, setTopic] = useState("");
   const [script, setScript] = useState(null);
+  const [contentType, setContentType] = useState("topic_teaser");
 
-  const start = async (t) => {
+  // Generate a script via API (30–45s total; includes SFX/camera hints)
+  const onGenerate = async (t, cType = "topic_teaser") => {
     setError(null);
     setTopic(t);
+    setContentType(cType);
     setScreen("loading");
     try {
-      const res = await fetch("/api/topic-mastery", {
+      const res = await fetch("/api/generate-tiktok-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: t }),
+        body: JSON.stringify({ topic: t, contentType: cType }),
       });
       if (!res.ok) {
         let msg = "Generation failed.";
@@ -33,7 +41,7 @@ export default function Page() {
       }
       const data = await res.json();
       setScript(data.script);
-      setScreen("runner");
+      setScreen("preview");
     } catch (e) {
       setError(e.message);
       setScreen("home");
@@ -59,8 +67,8 @@ export default function Page() {
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2 }}
             >
-              <TopicMasteryHome
-                onStart={start}
+              <HomeScreen
+                onGenerate={onGenerate}
                 isLoading={false}
                 error={error}
               />
@@ -81,18 +89,19 @@ export default function Page() {
             </motion.div>
           )}
 
-          {screen === "runner" && script && (
+          {screen === "preview" && script && (
             <motion.div
-              key="runner"
+              key="preview"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2 }}
             >
-              <TopicMasteryRunner
-                topic={topic}
+              <TikTokVideoPreview
                 script={script}
-                onDone={reset}
+                topic={topic}
+                contentType={contentType}
+                onGoBack={reset}
               />
             </motion.div>
           )}

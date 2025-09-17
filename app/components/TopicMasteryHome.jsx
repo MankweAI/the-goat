@@ -20,7 +20,7 @@ export default function TopicMasteryHome({ onStart, isLoading, error }) {
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Topic Mastery</h1>
         <p className="text-gray-500 text-sm mt-2">
-          A 2-minute interactive learning experience
+          2-minute interactive learning
         </p>
       </div>
 
@@ -29,7 +29,7 @@ export default function TopicMasteryHome({ onStart, isLoading, error }) {
           htmlFor="topic-input"
           className="block text-sm font-semibold text-gray-700 mb-3"
         >
-          What do you want to master?
+          Topic
         </label>
         <motion.input
           initial={{ x: -6, opacity: 0 }}
@@ -56,13 +56,13 @@ export default function TopicMasteryHome({ onStart, isLoading, error }) {
         whileTap={{ scale: 0.98 }}
         onClick={submit}
         disabled={isLoading || !topic.trim()}
-        className="w-full bg-gradient-to-r from-gray-700 to-gray-900 text-white py-3 px-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+        className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
       >
         Start Topic Mastery
       </motion.button>
 
       <p className="text-xs text-gray-400 mt-4 text-center">
-        No branding. All interactions are simulated automatically.
+        Minimal UI. All interactions are simulated.
       </p>
     </motion.div>
   );

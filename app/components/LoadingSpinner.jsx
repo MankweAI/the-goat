@@ -1,13 +1,16 @@
+// FILE: app/components/LoadingSpinner.jsx
+// PURPOSE: Minor copy tweak to reflect the pivot (optional).
+
 "use client";
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 const LOADING_MESSAGES = [
-  "Preparing your learning journey...",
-  "Creating mini-lessons...",
-  "Building progressive questions...",
-  "Polishing explanations...",
-  "Finalizing the experience...",
+  "Preparing your story beats...",
+  "Designing visuals...",
+  "Syncing camera and timing...",
+  "Polishing captions...",
+  "Adding sound cues...",
   "Almost ready...",
 ];
 
@@ -69,7 +72,7 @@ export default function LoadingSpinner() {
           />
         </div>
         <p className="text-xs text-gray-400 mt-2 text-center">
-          Generating your Topic Mastery...
+          Generating your TikTok explainer...
         </p>
       </div>
     </div>

@@ -14,7 +14,8 @@
     "openai": "^5.19.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "framer-motion": "^11.2.10"
+    "framer-motion": "^11.2.10",
+    "three": "^0.160.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

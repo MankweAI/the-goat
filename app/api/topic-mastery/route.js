@@ -4,36 +4,64 @@ import OpenAI from "openai";
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const systemPrompt = `
-You create a 2-minute "Topic Mastery" learning journey.
-Return a single JSON object (no markdown, no extra text) with:
-- "mini_lessons": 3-4 items. Each: { "title": string, "content": string, "key_point": string, "duration": number (20-30) }
-- "mcq_progression": 6 items (2 "easy", 2 "medium", 2 "difficult"). Each:
-  { "question": string, "options": string[4], "correct_answer": string, "difficulty": "easy"|"medium"|"difficult", "explanation": string }
-- "summary": { "key_points": string[3-6], "practical_application": string, "next_steps": string }
+You create a 2-minute "Topic Mastery" learning journey for short-form video.
 
-Keep explanations concise and accurate. Ensure valid JSON.
+Return ONLY a single JSON object (no markdown, no extra text) with keys:
+- "hook": string (a 3–10 word attention-grabbing line; no hashtags; no emojis)
+- "mini_lessons": array of 3-4 items. Each item:
+  { "title": string, "content": string, "key_point": string, "duration": number } 
+  - duration: number of seconds in [20, 30]
+  - content: concise and simple (1-3 short sentences)
+- "mcq_progression": array of exactly 6 items (2 "easy", 2 "medium", 2 "difficult"). Each:
+  { "question": string, "options": string[4], "correct_answer": string, "difficulty": "easy"|"medium"|"difficult", "explanation": string }
+  - question: clear and short
+  - explanation: max ~160 characters, one sentence if possible
+- "summary": {
+    "key_points": array of 3-5 short bullet strings,
+    "practical_application": string (<= 140 chars),
+    "next_steps": string (<= 140 chars)
+  }
+
+Constraints:
+- Use simple, readable language targeting Grade 8–10.
+- Keep line lengths short to fit mobile captions (<= ~36 chars line ideally).
+- Ensure valid JSON and consistent fields.
 `;
 
 function validate(payload) {
   if (!payload || typeof payload !== "object")
     return "Response is not an object";
-  const { mini_lessons, mcq_progression, summary } = payload;
+  const { hook, mini_lessons, mcq_progression, summary } = payload;
 
-  if (!Array.isArray(mini_lessons) || mini_lessons.length < 3)
-    return "mini_lessons must be an array of at least 3 items";
+  if (typeof hook !== "string" || !hook.trim() || hook.length > 80)
+    return "hook must be a short string (<= 80 chars)";
+
+  if (
+    !Array.isArray(mini_lessons) ||
+    mini_lessons.length < 3 ||
+    mini_lessons.length > 4
+  )
+    return "mini_lessons must be an array of 3-4 items";
   for (const l of mini_lessons) {
     if (
       !l ||
       typeof l.title !== "string" ||
       typeof l.content !== "string" ||
       typeof l.key_point !== "string" ||
-      typeof l.duration !== "number"
+      typeof l.duration !== "number" ||
+      l.duration < 18 ||
+      l.duration > 35
     )
-      return "Each mini_lesson must have title, content, key_point, duration";
+      return "Each mini_lesson must have title, content, key_point, duration(18-35)";
+    if (l.content.length > 300) return "Lesson content too long";
   }
 
   if (!Array.isArray(mcq_progression) || mcq_progression.length !== 6)
     return "mcq_progression must have exactly 6 questions";
+  const diffs = mcq_progression.map((q) => q?.difficulty);
+  const count = (d) => diffs.filter((x) => x === d).length;
+  if (count("easy") !== 2 || count("medium") !== 2 || count("difficult") !== 2)
+    return "mcq_progression must have 2 easy, 2 medium, 2 difficult";
   for (const q of mcq_progression) {
     if (
       !q ||
@@ -44,17 +72,22 @@ function validate(payload) {
       !["easy", "medium", "difficult"].includes(q.difficulty) ||
       typeof q.explanation !== "string"
     )
-      return "Each MCQ must have question, 4 options, correct_answer, difficulty, explanation";
+      return "Invalid MCQ item shape";
+    if (q.explanation.length > 240) return "MCQ explanation too long";
   }
 
   if (
     !summary ||
     !Array.isArray(summary.key_points) ||
     summary.key_points.length < 3 ||
+    summary.key_points.length > 5 ||
     typeof summary.practical_application !== "string" ||
     typeof summary.next_steps !== "string"
   )
-    return "summary must include key_points[3+], practical_application, next_steps";
+    return "Invalid summary shape";
+  if (summary.practical_application.length > 180)
+    return "practical_application too long";
+  if (summary.next_steps.length > 180) return "next_steps too long";
 
   return null;
 }
@@ -70,7 +103,7 @@ export async function POST(req) {
     }
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "OPENAI_API_KEY is not configured." },
+        { error: "OPENAI_API_KEY not configured." },
         { status: 500 }
       );
     }
@@ -86,14 +119,14 @@ export async function POST(req) {
       ],
       response_format: { type: "json_object" },
       temperature: 0.7,
-      max_tokens: 1200,
+      max_tokens: 1400,
     });
 
     const content = completion.choices?.[0]?.message?.content || "{}";
     let data;
     try {
       data = JSON.parse(content);
-    } catch (e) {
+    } catch {
       return NextResponse.json(
         { error: "Model returned invalid JSON." },
         { status: 502 }
@@ -101,9 +134,7 @@ export async function POST(req) {
     }
 
     const v = validate(data);
-    if (v) {
-      return NextResponse.json({ error: v }, { status: 422 });
-    }
+    if (v) return NextResponse.json({ error: v }, { status: 422 });
 
     return NextResponse.json({ script: data, topic: topic.trim() });
   } catch (err) {
@@ -114,5 +145,3 @@ export async function POST(req) {
     );
   }
 }
-
-

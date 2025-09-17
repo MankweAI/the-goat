@@ -1,407 +1,345 @@
 // FILE: app/components/TikTokVideoPreview.jsx
-// -------------------------------------------------
-// NEW - Interactive TikTok video simulator that plays through scenes
-// This shows exactly how the final video will look and feel
-// -------------------------------------------------
+// PURPOSE: 9:16 preview player with a vanilla Three.js background + SFX + captions.
+// HOW IT WORKS:
+// - Plays script.scenes sequentially (30–45s total).
+// - Mounts a small Three.js stage (vanilla three) for subtle 3D polish.
+// - Shows simple 2D overlays (equation card, balance, rule chip, result).
+// - Plays sound effects per scene (whoosh/ding/pop) using WebAudio.
+// NOTE: Client-only. Three stage is dynamically imported to avoid SSR issues.
+
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import dynamic from "next/dynamic";
+import useSfx from "./hooks/useSfx";
+
+// IMPORTANT: Dynamically import the 3D stage to avoid SSR issues.
+const ThreeStage = dynamic(() => import("./three/ThreeStageVanilla"), {
+  ssr: false,
+});
+
+// Map beats to overlays
+const BEAT_HINTS = {
+  setup: { overlay: "equation" },
+  problem: { overlay: "equation" },
+  confusion: { overlay: "equation" },
+  insight: { overlay: "rule" },
+  solve: { overlay: "balance" },
+  aha: { overlay: "result" },
+  wrap: { overlay: "result" },
+};
 
 export default function TikTokVideoPreview({
   script,
   topic,
   contentType,
-  onCreateVideo,
   onGoBack,
-  error,
 }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentScene, setCurrentScene] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(0);
-  const intervalRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const scenes = Array.isArray(script?.scenes) ? script.scenes : [];
+  const totalDuration = useMemo(
+    () => scenes.reduce((a, s) => a + (s.duration || 0), 0),
+    [scenes]
+  );
 
-  // Calculate total duration
-  const totalDuration =
-    script.scenes?.reduce((sum, scene) => sum + scene.duration, 0) || 15;
+  const [idx, setIdx] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const [sceneProgress, setSceneProgress] = useState(0); // 0..1 within current scene
+  const timerRef = useRef(null);
+  const sceneStartRef = useRef(0);
 
-  // Start/Stop video preview
-  const togglePlayback = () => {
-    if (isPlaying) {
-      pauseVideo();
-    } else {
-      playVideo();
-    }
+  const { playWhoosh, playDing, playPop, ensureUnlocked, unlocked } = useSfx();
+
+  const playSceneSfx = (sfx) => {
+    if (!unlocked) return;
+    if (sfx === "whoosh") playWhoosh();
+    else if (sfx === "ding") playDing();
+    else if (sfx === "pop") playPop();
   };
 
-  const playVideo = () => {
-    if (currentScene >= (script.scenes?.length || 0)) {
-      resetVideo();
-    }
-    setIsPlaying(true);
-    playCurrentScene();
-  };
+  // Start/Restart timeline when scenes change
+  useEffect(() => {
+    if (scenes.length === 0) return;
+    setIdx(0);
+    setPlaying(true);
+    setSceneProgress(0);
+    clearTimeout(timerRef.current);
 
-  const pauseVideo = () => {
-    setIsPlaying(false);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  };
+    playSceneSfx(scenes[0]?.sfx);
 
-  const resetVideo = () => {
-    pauseVideo();
-    setCurrentScene(0);
-    setProgress(0);
-    setTimeRemaining(totalDuration);
-  };
-
-  const playCurrentScene = () => {
-    if (!script.scenes || currentScene >= script.scenes.length) {
-      // Video finished
-      setIsPlaying(false);
-      return;
-    }
-
-    const scene = script.scenes[currentScene];
-    const sceneDuration = scene.duration * 1000; // Convert to milliseconds
-
-    // Update progress bar
-    const startTime = Date.now();
-    intervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const sceneProgress = Math.min(elapsed / sceneDuration, 1);
-
-      // Calculate total progress
-      const previousScenesTime = script.scenes
-        .slice(0, currentScene)
-        .reduce((sum, s) => sum + s.duration, 0);
-      const totalProgress =
-        (previousScenesTime + sceneProgress * scene.duration) / totalDuration;
-
-      setProgress(totalProgress * 100);
-      setTimeRemaining(
-        totalDuration - (previousScenesTime + sceneProgress * scene.duration)
+    const step = (i) => {
+      sceneStartRef.current = performance.now();
+      const durMs = Math.max(
+        1000,
+        Math.min(6000, (scenes[i]?.duration || 2) * 1000)
       );
-
-      if (sceneProgress >= 1) {
-        clearInterval(intervalRef.current);
-      }
-    }, 50);
-
-    // Move to next scene after duration
-    timeoutRef.current = setTimeout(() => {
-      if (currentScene < script.scenes.length - 1) {
-        setCurrentScene(currentScene + 1);
-        playCurrentScene(); // Play next scene
-      } else {
-        // Video finished
-        setIsPlaying(false);
-        setProgress(100);
-        setTimeRemaining(0);
-      }
-    }, sceneDuration);
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        if (!playing) return;
+        if (i + 1 < scenes.length) {
+          setIdx(i + 1);
+          playSceneSfx(scenes[i + 1]?.sfx);
+          step(i + 1);
+        } else {
+          setPlaying(false); // stop at end
+        }
+      }, durMs);
     };
-  }, []);
 
-  // Reset when script changes
+    step(0);
+    return () => clearTimeout(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(scenes)]);
+
+  // Progress ticker
   useEffect(() => {
-    resetVideo();
-  }, [script]);
+    let raf;
+    const tick = () => {
+      if (!playing) return;
+      const now = performance.now();
+      const durMs = Math.max(
+        1000,
+        Math.min(6000, (scenes[idx]?.duration || 2) * 1000)
+      );
+      const elapsed = Math.min(1, (now - sceneStartRef.current) / durMs);
+      setSceneProgress(elapsed);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [idx, playing, scenes]);
 
-  const formatTime = (seconds) => {
-    return seconds < 10
-      ? `0:0${Math.floor(seconds)}`
-      : `0:${Math.floor(seconds)}`;
+  const current = scenes[idx] || {
+    text: "",
+    beat: "setup",
+    duration: 2,
+    sfx: "none",
+    camera: "hold",
+  };
+  const hint = BEAT_HINTS[current.beat] || BEAT_HINTS.setup;
+
+  // Controls
+  const onTogglePlay = () => {
+    if (!unlocked) ensureUnlocked();
+    setPlaying((p) => !p);
+    if (!playing) {
+      sceneStartRef.current =
+        performance.now() - sceneProgress * (current.duration * 1000);
+      clearTimeout(timerRef.current);
+      const remain = (1 - sceneProgress) * (current.duration * 1000);
+      timerRef.current = setTimeout(() => {
+        if (idx + 1 < scenes.length) {
+          setIdx(idx + 1);
+          playSceneSfx(scenes[idx + 1]?.sfx);
+        } else {
+          setPlaying(false);
+        }
+      }, remain);
+    } else {
+      clearTimeout(timerRef.current);
+    }
   };
 
-  const getSceneBackground = (index) => {
-    const backgrounds = [
-      "from-purple-600 to-blue-600",
-      "from-pink-500 to-rose-500",
-      "from-blue-500 to-cyan-500",
-      "from-green-500 to-emerald-500",
-      "from-orange-500 to-red-500",
-      "from-indigo-500 to-purple-500",
-      "from-teal-500 to-blue-500",
-    ];
-    return backgrounds[index % backgrounds.length];
+  const onRestart = () => {
+    setIdx(0);
+    setPlaying(true);
+    setSceneProgress(0);
+    clearTimeout(timerRef.current);
+    playSceneSfx(scenes[0]?.sfx);
   };
 
-  if (contentType !== "topic_teaser" || !script.scenes) {
-    // For non-scene based content types, show simplified preview
-    return (
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={onGoBack}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <svg
-              width="24"
-              height="24"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <h2 className="text-lg font-bold text-gray-800">Content Preview</h2>
-          <div className="w-6"></div>
-        </div>
-
-        <div className="mb-6">
-          <div className="bg-rose-50 px-3 py-2 rounded-lg border border-rose-100 mb-4">
-            <p className="text-sm font-medium text-rose-800">
-              📖 Topic: {topic}
-            </p>
-          </div>
-
-          {/* Render content based on type */}
-          {contentType === "quick_quiz" && script.question && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                <h4 className="font-semibold text-blue-800 text-sm mb-2">
-                  ❓ Question:
-                </h4>
-                <p className="text-gray-800 font-medium">{script.question}</p>
-              </div>
-              <div className="space-y-2">
-                {script.options?.map((option, index) => (
-                  <div
-                    key={index}
-                    className={`p-3 rounded-lg text-sm border ${
-                      option === script.correctAnswer
-                        ? "bg-green-50 border-green-200 text-green-800"
-                        : "bg-gray-50 border-gray-200 text-gray-700"
-                    }`}
-                  >
-                    <strong>{String.fromCharCode(65 + index)}.</strong> {option}
-                    {option === script.correctAnswer && (
-                      <span className="ml-2 text-green-600">✓</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {contentType === "exam_hack" && script.hook && (
-            <div className="space-y-4">
-              <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
-                <h4 className="font-semibold text-orange-800 text-sm mb-2">
-                  🎯 Hook:
-                </h4>
-                <p className="text-gray-800">{script.hook}</p>
-              </div>
-              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
-                <h4 className="font-semibold text-yellow-800 text-sm mb-2">
-                  💡 Hack:
-                </h4>
-                <p className="text-gray-800">{script.hack}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">⚠️ {error}</p>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <button
-            onClick={onCreateVideo}
-            className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white py-3 px-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            🎬 Create Video
-          </button>
-          <button
-            onClick={onGoBack}
-            className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-          >
-            ← Generate New Script
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Beat-driven overlay choice
+  const Overlay = useMemo(() => {
+    switch (hint.overlay) {
+      case "equation":
+        return <EquationCard emphasis={current.beat === "problem"} />;
+      case "rule":
+        return <RuleCard />;
+      case "balance":
+        return <BalanceScale />;
+      case "result":
+      default:
+        return <ResultCard />;
+    }
+  }, [hint.overlay, current.beat]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-auto">
+    <div className="bg-white rounded-2xl shadow-2xl p-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-3">
         <button
           onClick={onGoBack}
-          className="text-gray-500 hover:text-gray-700 transition-colors"
+          className="text-sm text-gray-600 hover:text-black"
         >
-          <svg
-            width="24"
-            height="24"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
+          &larr; Back
         </button>
-        <div className="text-center flex-1">
-          <h2 className="text-lg font-bold text-gray-800">TikTok Preview</h2>
-          <p className="text-xs text-gray-500">Topic Teaser</p>
+        <div className="text-xs text-gray-500 truncate max-w-[50%]">
+          {topic}
         </div>
-        <div className="w-6"></div>
-      </div>
-
-      {/* Topic */}
-      <div className="mb-4">
-        <div className="bg-rose-50 px-3 py-2 rounded-lg border border-rose-100">
-          <p className="text-sm font-medium text-rose-800">📖 {topic}</p>
+        <div className="text-xs text-gray-400">
+          {Math.round(totalDuration)}s
         </div>
       </div>
 
-      {/* TikTok Video Simulator */}
-      <div className="mb-6">
-        <div className="relative aspect-[9/16] bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-gray-800">
-          {/* Video Content */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentScene}
-              initial={{ opacity: 0, scale: 1.1 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.3 }}
-              className={`absolute inset-0 bg-gradient-to-br ${getSceneBackground(
-                currentScene
-              )} flex items-center justify-center p-6`}
-            >
-              <div className="text-center">
-                <motion.h3
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  className="text-white font-bold text-lg leading-tight drop-shadow-lg"
-                >
-                  {script.scenes[currentScene]?.text || "Scene loading..."}
-                </motion.h3>
+      {/* 9:16 phone frame */}
+      <div className="relative mx-auto w-[270px] h-[480px] rounded-[24px] overflow-hidden shadow-inner bg-gradient-to-b from-gray-50 to-gray-100 border border-gray-200">
+        {/* 3D Stage (background) */}
+        <ThreeStage
+          beat={current.beat}
+          sceneIndex={idx}
+          sceneProgress={sceneProgress}
+        />
 
-                {/* Scene indicator */}
-                <div className="absolute top-4 right-4 bg-black/30 rounded-full px-3 py-1">
-                  <span className="text-white text-xs font-medium">
-                    {currentScene + 1}/{script.scenes.length}
-                  </span>
-                </div>
+        {/* Readability vignette */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(60% 35% at 50% 30%, rgba(255,255,255,0) 0%, rgba(0,0,0,0.08) 100%)",
+          }}
+        />
 
-                {/* Duration indicator */}
-                <div className="absolute top-4 left-4 bg-black/30 rounded-full px-3 py-1">
-                  <span className="text-white text-xs font-medium">
-                    {script.scenes[currentScene]?.duration}s
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+        {/* Beat-driven 2D overlay */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${idx}-${hint.overlay}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.25 }}
+            className="absolute inset-0"
+          >
+            {Overlay}
+          </motion.div>
+        </AnimatePresence>
 
-          {/* Progress Bar */}
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
-            <motion.div
-              className="h-full bg-white"
-              style={{ width: `${progress}%` }}
-              transition={{ duration: 0.1 }}
-            />
-          </div>
+        {/* Caption Layer (Lower Third) */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`cap-${idx}`}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -10, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="absolute bottom-4 left-3 right-3"
+          >
+            <div className="px-3 py-2 rounded-xl bg-white/85 backdrop-blur border border-gray-200 shadow">
+              <p className="text-[13px] leading-snug text-gray-900 text-center">
+                {current.text}
+              </p>
+            </div>
+          </motion.div>
+        </AnimatePresence>
 
-          {/* Play/Pause Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <motion.button
-              onClick={togglePlayback}
-              whileTap={{ scale: 0.9 }}
-              className="w-16 h-16 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-            >
-              {isPlaying ? (
-                <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
-                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-                </svg>
-              ) : (
-                <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              )}
-            </motion.button>
-          </div>
-
-          {/* Time Display */}
-          <div className="absolute bottom-4 left-4 bg-black/50 rounded-full px-3 py-1">
-            <span className="text-white text-xs font-medium">
-              {formatTime(timeRemaining)}
-            </span>
-          </div>
-        </div>
-
-        {/* Video Controls */}
-        <div className="flex items-center justify-center mt-4 space-x-4">
+        {/* Sound Unlock Prompt */}
+        {!unlocked && (
           <button
-            onClick={resetVideo}
-            className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-            title="Restart"
+            onClick={ensureUnlocked}
+            className="absolute top-3 right-3 px-2 py-1 rounded-lg bg-emerald-600 text-white text-[11px] shadow"
+            title="Enable sound effects"
           >
-            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
-            </svg>
+            Enable Sound 🔊
           </button>
+        )}
 
-          <div className="text-center">
-            <p className="text-xs text-gray-500">
-              {isPlaying ? "Playing" : "Paused"} • {totalDuration}s total
-            </p>
-          </div>
+        {/* Transport Controls */}
+        <div className="absolute top-3 left-3 flex items-center gap-2">
+          <button
+            onClick={onTogglePlay}
+            className="px-2 py-1 rounded-lg bg-gray-900/80 text-white text-[11px] shadow"
+          >
+            {playing ? "Pause" : "Play"}
+          </button>
+          <button
+            onClick={onRestart}
+            className="px-2 py-1 rounded-lg bg-gray-200 text-gray-900 text-[11px] shadow"
+          >
+            Restart
+          </button>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="absolute bottom-2 left-3 right-3 h-1 bg-white/50 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-indigo-500 to-violet-500"
+            style={{
+              width: `${
+                ((scenes
+                  .slice(0, idx)
+                  .reduce((a, s) => a + (s.duration || 0), 0) +
+                  sceneProgress * (current.duration || 0)) /
+                  (totalDuration || 1)) *
+                100
+              }%`,
+              transition: "width 120ms linear",
+            }}
+          />
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Error Display */}
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-700">⚠️ {error}</p>
-        </div>
-      )}
+/* -----------------------------
+   Simple overlay components
+   ----------------------------- */
 
-      {/* Action Buttons */}
-      <div className="space-y-3">
-        <motion.button
-          onClick={onCreateVideo}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white py-3 px-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center"
-        >
-          <span className="mr-2">🎬</span>
-          Create This Video
-        </motion.button>
+function EquationCard({ emphasis = false }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div
+        className={`px-10 py-8 rounded-2xl bg-white/90 backdrop-blur border border-gray-200 shadow ${
+          emphasis ? "animate-shake" : ""
+        }`}
+      >
+        <p className="text-xl font-semibold text-gray-900">2(x+3) = 14</p>
+      </div>
+    </div>
+  );
+}
 
-        <button
-          onClick={onGoBack}
-          className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors flex items-center justify-center"
-        >
-          <span className="mr-2">←</span>
-          Generate New Script
-        </button>
+function BalanceScale() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <svg width="230" height="150" viewBox="0 0 230 150">
+        <g stroke="#334155" strokeWidth="2" fill="none">
+          <line x1="15" y1="135" x2="215" y2="135" />
+          <line x1="115" y1="35" x2="115" y2="135" />
+          <line x1="35" y1="90" x2="195" y2="90" />
+          <line x1="60" y1="90" x2="60" y2="120" />
+          <line x1="170" y1="90" x2="170" y2="120" />
+          <rect x="40" y="118" width="40" height="18" rx="6" />
+          <rect x="150" y="118" width="40" height="18" rx="6" />
+        </g>
+        <text x="60" y="110" textAnchor="middle" fontSize="12" fill="#111827">
+          2(x+3)
+        </text>
+        <text x="170" y="110" textAnchor="middle" fontSize="12" fill="#111827">
+          14
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function RuleCard() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className="px-4 py-2 rounded-xl border border-indigo-200 bg-indigo-50/85 text-indigo-800 shadow animate-fade-in">
+        +3 → −3
+      </div>
+    </div>
+  );
+}
+
+function ResultCard() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+      <div className="px-4 py-2 rounded-xl border border-emerald-200 bg-emerald-50/90 text-emerald-700 shadow">
+        x = 4 ✓
+      </div>
+      <div className="px-4 py-2 rounded-xl border border-gray-200 bg-white/85 text-gray-800 shadow text-sm">
+        Ax+b=c → x=(c−b)/a
       </div>
     </div>
   );
